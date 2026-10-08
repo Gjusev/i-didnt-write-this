@@ -79,10 +79,30 @@ test("verified challenges embed the recorded run output", async () => {
 
 test("ui string overrides reach the rendered page", async () => {
   const lesson = loadDemoLesson();
-  lesson.ui = { solvedProgress: "Resueltas {n} de {total}", incorrect: "✗ Incorrecto." };
+  lesson.ui = {
+    solvedProgress: "Resueltas {n} de {total}",
+    incorrect: "✗ Incorrecto.",
+    kicker: "Lección interactiva de código",
+    flowHeading: "Cómo funciona esta funcionalidad",
+    challengesHeading: "Retos",
+    limitationsHeading: "Límites y supuestos",
+    checkAnswer: "Comprobar respuesta",
+    hintLabel: "Pista {n}",
+    optionsLabel: "Opciones",
+  };
   const { html } = await buildHtml(lesson, CART_REPO);
   assert.match(html, /Resueltas 0 de 3/);
   assert.match(html, /✗ Incorrecto\./);
+  assert.match(html, /Lección interactiva de código/);
+  assert.match(html, /Cómo funciona esta funcionalidad/);
+  assert.match(html, /Retos</);
+  assert.match(html, /Límites y supuestos/);
+  assert.match(html, /Comprobar respuesta/);
+  assert.match(html, /Pista 1/);
+  assert.match(html, /Opciones/);
+  // English defaults must disappear once overridden.
+  assert.doesNotMatch(html, /How this feature works/);
+  assert.doesNotMatch(html, /Check answer/);
 });
 
 test("buildHtml refuses to render an invalid lesson", async () => {

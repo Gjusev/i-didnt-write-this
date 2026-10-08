@@ -303,7 +303,7 @@
 </header>
 <section id="flow">
 <h2>How this feature works</h2>
-<p class="section-intro">Open each step to see its code and the evidence behind it. <span class="badge observed">observed</span> means seen running in a recorded execution; <span class="badge inferred">inferred</span> means concluded from reading the code; <span class="badge unobserved">not observed</span> means not examined.</p>
+<p class="section-intro">Open each step to see its code and the evidence behind it. &quot;observed&quot; means seen running in a recorded execution; &quot;inferred&quot; means concluded from reading the code; &quot;not observed&quot; means not examined.</p>
 <ol class="flow">
 <li class="node" id="node-n-checkout">
 <details>
@@ -544,7 +544,7 @@
 <details class="hint"><summary>Hint 2</summary><p>TENPCT is 10% off, capped at $20. Compare 10% of the subtotal against the cap.</p></details>
 <details class="spoiler"><summary>Explanation (spoiler)</summary><p>The subtotal is 30 + 25 = 55. TENPCT takes min(10% of 55, cap 20) = 5.5, so total = 55 - 5.5 = 49.5. The recorded run printed exactly {&quot;subtotal&quot;:55,&quot;discount&quot;:5.5,&quot;total&quot;:49.5}.</p></details>
 <aside class="verification verified">
-<p><strong>✓ Verified against execution.</strong> The recorded run below is the ground truth for the correct answer. Evidence e-checkout.</p>
+<p><strong>✓ Verified against execution.</strong> The recorded run below is the ground truth for the correct answer. e-checkout</p>
 <details><summary>Show the recorded run</summary><p class="io-label">stdout</p><pre class="io">{&quot;cmd&quot;:&quot;checkout&quot;,&quot;coupon&quot;:&quot;TENPCT&quot;,&quot;couponResult&quot;:{&quot;ok&quot;:true,&quot;code&quot;:&quot;TENPCT&quot;,&quot;discount&quot;:5.5,&quot;total&quot;:49.5},&quot;totals&quot;:{&quot;subtotal&quot;:55,&quot;discount&quot;:5.5,&quot;total&quot;:49.5},&quot;saved&quot;:{&quot;items&quot;:[{&quot;sku&quot;:&quot;keyboard&quot;,&quot;price&quot;:30,&quot;qty&quot;:1},{&quot;sku&quot;:&quot;cable&quot;,&quot;price&quot;:12.5,&quot;qty&quot;:2}],&quot;coupon&quot;:&quot;TENPCT&quot;}}
 </pre><p class="io-label">command</p><pre class="io">node src/index.js</pre></details>
 </aside>
@@ -566,7 +566,7 @@
 <details class="hint"><summary>Hint 2</summary><p>Open step 5 (recompute) and look at what it writes into cart.totals.discount.</p></details>
 <details class="spoiler"><summary>Explanation (spoiler)</summary><p>serialize keeps only items and the coupon code, so reload must rebuild totals. It calls recompute(cart), which sets totals.discount = 0 and totals.total = subtotal. The recorded reload run confirms the result: coupon &quot;TENPCT&quot; with discount 0 and total 55.</p></details>
 <aside class="verification verified">
-<p><strong>✓ Verified against execution.</strong> The recorded run below is the ground truth for the correct answer. Evidence e-reload.</p>
+<p><strong>✓ Verified against execution.</strong> The recorded run below is the ground truth for the correct answer. e-reload</p>
 <details><summary>Show the recorded run</summary><p class="io-label">stdout</p><pre class="io">{&quot;cmd&quot;:&quot;reload&quot;,&quot;coupon&quot;:&quot;TENPCT&quot;,&quot;totals&quot;:{&quot;subtotal&quot;:55,&quot;discount&quot;:0,&quot;total&quot;:55}}
 </pre><p class="io-label">command</p><pre class="io">node src/index.js</pre></details>
 </aside>
@@ -588,7 +588,7 @@
 <details class="hint"><summary>Hint 2</summary><p>recompute&#39;s reset is a documented contract: callers re-apply coupons after changing items. Which caller fails to do that?</p></details>
 <details class="spoiler"><summary>Explanation (spoiler)</summary><p>The recorded runs narrow it down: checkout prints a correct discounted total, so pricing and printing work; after reload the coupon code is still on the cart but the discount is 0. reload() in store.js rebuilds totals via recompute() and never re-applies the stored coupon. Fixing it means re-applying the coupon inside reload (or persisting the applied discount), not changing recompute&#39;s contract.</p></details>
 <aside class="verification verified">
-<p><strong>✓ Verified against execution.</strong> The recorded run below is the ground truth for the correct answer. Evidence e-reload.</p>
+<p><strong>✓ Verified against execution.</strong> The recorded run below is the ground truth for the correct answer. e-reload</p>
 <details><summary>Show the recorded run</summary><p class="io-label">stdout</p><pre class="io">{&quot;cmd&quot;:&quot;reload&quot;,&quot;coupon&quot;:&quot;TENPCT&quot;,&quot;totals&quot;:{&quot;subtotal&quot;:55,&quot;discount&quot;:0,&quot;total&quot;:55}}
 </pre><p class="io-label">command</p><pre class="io">node src/index.js</pre></details>
 </aside>

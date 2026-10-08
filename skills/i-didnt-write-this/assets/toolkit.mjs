@@ -576,14 +576,14 @@ function renderNode(node, index, evidenceById, snippetById, snippetStatus) {
   ].join("\n");
 }
 
-function renderChallenge(challenge, evidenceById, snippetById, nodeLabelById) {
+function renderChallenge(challenge, evidenceById, snippetById, nodeLabelById, ui) {
   const verified = Array.isArray(challenge.verifiedBy) && challenge.verifiedBy.length > 0;
   const parts = [
     `<article class="challenge" id="challenge-${esc(challenge.id)}">`,
     `<h3><span class="kind">${esc(challenge.kind)}</span>${esc(challenge.prompt)}</h3>`,
   ];
   if (challenge.displayInput !== undefined && challenge.displayInput !== null) {
-    parts.push(preIo("Input", typeof challenge.displayInput === "string" ? challenge.displayInput : JSON.stringify(challenge.displayInput, null, 2)));
+    parts.push(preIo(ui.inputLabel || "Input", typeof challenge.displayInput === "string" ? challenge.displayInput : JSON.stringify(challenge.displayInput, null, 2)));
   }
   if (Array.isArray(challenge.snippetIds) && challenge.snippetIds.length > 0) {
     const items = challenge.snippetIds
@@ -594,33 +594,34 @@ function renderChallenge(challenge, evidenceById, snippetById, nodeLabelById) {
         const label = `${s.path}:${s.startLine}-${s.endLine}`;
         return nodeId ? `<a href="#node-${esc(nodeId)}">${esc(label)}</a>` : esc(label);
       });
-    if (items.length) parts.push(`<p class="meta">Code to inspect: ${items.join(" · ")}</p>`);
+    if (items.length) parts.push(`<p class="meta">${esc(ui.codeToInspectLabel || "Code to inspect")}: ${items.join(" · ")}</p>`);
   }
   parts.push(`<form class="challenge-form" data-challenge-id="${esc(challenge.id)}">`);
-  parts.push('<fieldset><legend>Options</legend>');
+  parts.push(`<fieldset><legend>${esc(ui.optionsLabel || "Options")}</legend>`);
   for (const o of challenge.options) {
     parts.push(`<label><input type="radio" name="${esc(challenge.id)}" value="${esc(o.id)}"> ${esc(o.text)}</label>`);
   }
   parts.push("</fieldset>");
-  parts.push('<button type="submit" class="check">Check answer</button>');
+  parts.push(`<button type="submit" class="check">${esc(ui.checkAnswer || "Check answer")}</button>`);
   parts.push('<p class="feedback" role="status" aria-live="polite"></p>');
   parts.push("</form>");
   (challenge.hints || []).forEach((hint, i) => {
-    parts.push(`<details class="hint"><summary>Hint ${i + 1}</summary><p>${esc(hint)}</p></details>`);
+    const hintLabel = (ui.hintLabel || "Hint {n}").replace("{n}", String(i + 1));
+    parts.push(`<details class="hint"><summary>${esc(hintLabel)}</summary><p>${esc(hint)}</p></details>`);
   });
-  parts.push(`<details class="spoiler"><summary>Explanation (spoiler)</summary><p>${esc(challenge.explanation)}</p></details>`);
+  parts.push(`<details class="spoiler"><summary>${esc(ui.explanationLabel || "Explanation (spoiler)")}</summary><p>${esc(challenge.explanation)}</p></details>`);
   if (verified) {
     parts.push('<aside class="verification verified">');
-    parts.push(`<p><strong>✓ Verified against execution.</strong> The recorded run below is the ground truth for the correct answer. Evidence ${challenge.verifiedBy.map((id) => esc(id)).join(", ")}.</p>`);
+    parts.push(`<p><strong>${esc(ui.verifiedTitle || "✓ Verified against execution.")}</strong> ${esc(ui.verifiedBody || "The recorded run below is the ground truth for the correct answer.")} ${esc(challenge.verifiedBy.map((id) => id).join(", "))}</p>`);
     for (const evId of challenge.verifiedBy.slice(0, 1)) {
       const e = evidenceById.get(evId);
       if (e) {
-        parts.push(`<details><summary>Show the recorded run</summary>${preIo("stdout", e.stdout)}${preIo("command", e.command)}</details>`);
+        parts.push(`<details><summary>${esc(ui.showRecordedRun || "Show the recorded run")}</summary>${preIo(ui.stdoutLabel || "stdout", e.stdout)}${preIo(ui.commandLabel || "command", e.command)}</details>`);
       }
     }
     parts.push("</aside>");
   } else {
-    parts.push('<aside class="verification unverified"><p>No execution evidence was recorded for this challenge. The marked answer is the lesson author\'s claim, not a verified result.</p></aside>');
+    parts.push(`<aside class="verification unverified"><p>${esc(ui.unverifiedBody || "No execution evidence was recorded for this challenge. The marked answer is the lesson author's claim, not a verified result.")}</p></aside>`);
   }
   parts.push("</article>");
   return parts.join("\n");
@@ -655,35 +656,40 @@ export async function buildHtml(lesson, repoRoot) {
 
   const content = [];
   content.push('<header class="lesson-header">');
-  content.push('<p class="kicker">Interactive code lesson</p>');
+  content.push(`<p class="kicker">${esc(ui.kicker || "Interactive code lesson")}</p>`);
   content.push(`<h1>${esc(lesson.title)}</h1>`);
   content.push(`<p class="objective">${esc(lesson.objective)}</p>`);
-  content.push(`<p class="meta">Feature: <strong>${esc(lesson.feature)}</strong> · Source revision: <code>${esc(lesson.sourceSnapshot.revision || "not recorded")}</code> · <span id="progress">${esc(progressText)}</span></p>`);
+  content.push(`<p class="meta">${esc(ui.featureLabel || "Feature")}: <strong>${esc(lesson.feature)}</strong> · ${esc(ui.revisionLabel || "Source revision")}: <code>${esc(lesson.sourceSnapshot.revision || (ui.noRevisionLabel || "not recorded"))}</code> · <span id="progress">${esc(progressText)}</span></p>`);
   content.push("</header>");
 
   if (check.warnings.length > 0) {
     content.push('<section class="banner" role="note">');
-    content.push("<h2>⚠ Warnings — review before trusting this lesson</h2>");
+    content.push(`<h2>${esc(ui.warningsHeading || "⚠ Warnings — review before trusting this lesson")}</h2>`);
     content.push("<ul>");
     for (const w of check.warnings) content.push(`<li>${esc(w)}</li>`);
     content.push("</ul></section>");
   }
 
   content.push("<section id=\"flow\">");
-  content.push("<h2>How this feature works</h2>");
-  content.push('<p class="section-intro">Open each step to see its code and the evidence behind it. <span class="badge observed">observed</span> means seen running in a recorded execution; <span class="badge inferred">inferred</span> means concluded from reading the code; <span class="badge unobserved">not observed</span> means not examined.</p>');
+  content.push(`<h2>${esc(ui.flowHeading || "How this feature works")}</h2>`);
+  content.push(
+    `<p class="section-intro">${esc(
+      ui.flowIntro ||
+        'Open each step to see its code and the evidence behind it. "observed" means seen running in a recorded execution; "inferred" means concluded from reading the code; "not observed" means not examined.'
+    )}</p>`
+  );
   content.push('<ol class="flow">');
   lesson.flow.nodes.forEach((node, i) => content.push(renderNode(node, i, evidenceById, snippetById, snippetStatus)));
   content.push("</ol></section>");
 
   content.push('<section id="challenges">');
-  content.push("<h2>Challenges</h2>");
-  lesson.challenges.forEach((c) => content.push(renderChallenge(c, evidenceById, snippetById, nodeLabelById)));
+  content.push(`<h2>${esc(ui.challengesHeading || "Challenges")}</h2>`);
+  lesson.challenges.forEach((c) => content.push(renderChallenge(c, evidenceById, snippetById, nodeLabelById, ui)));
   content.push("</section>");
 
   if (lesson.limitations.length > 0) {
     content.push('<section id="limits">');
-    content.push("<h2>Limitations &amp; assumptions</h2>");
+    content.push(`<h2>${esc(ui.limitationsHeading || "Limitations & assumptions")}</h2>`);
     content.push("<ul>");
     for (const l of lesson.limitations) content.push(`<li>${esc(l)}</li>`);
     content.push("</ul></section>");

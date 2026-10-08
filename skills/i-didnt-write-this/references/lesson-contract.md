@@ -151,15 +151,40 @@ describes this repository — fix the code or regenerate the lesson.
 
 ## `ui` (optional)
 
-Override the viewer's built-in English strings when `language` is not English:
+Override the viewer's built-in English chrome when `language` is not English.
+Every key is optional; unset keys fall back to English. Placeholders: `{n}`,
+`{total}` in `solvedProgress`; `{n}` in `hintLabel`.
 
-```json
-{ "solvedProgress": "Resueltas {n} de {total}", "incorrect": "✗ Incorrecto.",
-  "selectAnswer": "Elige una opción primero.", "correctVerified": "✓ Correcto. Respaldado por la ejecución grabada.",
-  "correctPlain": "✓ Correcto.", "skipToChallenges": "Saltar a los retos" }
-```
+| Key | Default (English) |
+| --- | --- |
+| `kicker` | Interactive code lesson |
+| `featureLabel` / `revisionLabel` / `noRevisionLabel` | Feature / Source revision / not recorded |
+| `solvedProgress` | Solved {n}/{total} |
+| `skipToChallenges` | Skip to challenges |
+| `warningsHeading` | ⚠ Warnings — review before trusting this lesson |
+| `flowHeading` | How this feature works |
+| `flowIntro` | Open each step to see its code and the evidence behind it. … |
+| `challengesHeading` | Challenges |
+| `limitationsHeading` | Limitations & assumptions |
+| `optionsLabel` | Options |
+| `checkAnswer` | Check answer |
+| `hintLabel` | Hint {n} |
+| `explanationLabel` | Explanation (spoiler) |
+| `codeToInspectLabel` | Code to inspect |
+| `inputLabel` | Input |
+| `verifiedTitle` | ✓ Verified against execution. |
+| `verifiedBody` | The recorded run below is the ground truth for the correct answer. |
+| `showRecordedRun` | Show the recorded run |
+| `stdoutLabel` / `commandLabel` | stdout / command |
+| `unverifiedBody` | No execution evidence was recorded for this challenge. … |
+| `selectAnswer` | Select an answer first. |
+| `correctVerified` | ✓ Correct. This answer is backed by the recorded execution shown below. |
+| `correctPlain` | ✓ Correct. (No execution evidence recorded for this challenge.) |
+| `incorrect` | ✗ Not correct. Re-read the linked code, or open a hint. |
 
-`solvedProgress` may use `{n}` and `{total}` placeholders.
+Known boundary: a few low-level labels inside evidence blocks ("execution",
+"Input (stdin)", "Recorded stdout", "exit code") stay in English; they quote
+the toolkit's own records verbatim.
 
 ## `limitations[]`
 
