@@ -12,7 +12,7 @@ whose answers are backed by recorded executions.
 
 Everything the toolkit needs ships inside this skill directory. Resolve paths
 relative to this SKILL.md (`assets/toolkit.mjs`, `references/lesson-contract.md`).
-Requires Node.js >= 20. No npm install.
+Requires Node.js >= 22. No npm install.
 
 ## Workflow
 

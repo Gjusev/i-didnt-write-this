@@ -18,7 +18,7 @@ of `fixtures/cart` as evidence.
 
 ## Install
 
-1. You need [Node.js](https://nodejs.org) >= 20 on your machine. That is the
+1. You need [Node.js](https://nodejs.org) >= 22 on your machine. That is the
    only requirement — the toolkit has zero npm dependencies.
 2. Copy or clone this repository, then add the skill to your agent. For Claude
    Code, from this repository run:
