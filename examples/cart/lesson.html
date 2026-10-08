@@ -1,0 +1,661 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Where did the coupon discount go?</title>
+<style>
+  :root {
+    --bg: #fdfdfb;
+    --text: #1c1c1a;
+    --muted: #55554f;
+    --accent: #0b5cad;
+    --accent-soft: #e8f1f9;
+    --border: #cfcec6;
+    --code-bg: #f4f4ee;
+    --ok: #1a6b3c;
+    --ok-soft: #e9f4ed;
+    --warn: #8a6100;
+    --warn-soft: #fbf3e2;
+    --bad: #a13030;
+    --bad-soft: #faeeee;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0 auto;
+    padding: 1.5rem 1.25rem 4rem;
+    max-width: 62rem;
+    background: var(--bg);
+    color: var(--text);
+    font: 1rem/1.6 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  code, pre, kbd {
+    font-family: ui-monospace, "Cascadia Code", Consolas, "Courier New", monospace;
+  }
+  a { color: var(--accent); }
+  a:focus-visible, summary:focus-visible, button:focus-visible, input:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .skip {
+    position: absolute;
+    left: -999px;
+    top: 0;
+    background: var(--accent);
+    color: #fff;
+    padding: 0.5rem 1rem;
+    z-index: 10;
+  }
+  .skip:focus { left: 0.5rem; top: 0.5rem; }
+
+  .lesson-header h1 {
+    font-size: clamp(1.5rem, 4vw, 2.2rem);
+    line-height: 1.2;
+    margin: 0.2rem 0 0.6rem;
+  }
+  .kicker {
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--accent);
+    margin: 0;
+  }
+  .objective { font-size: 1.1rem; margin: 0.4rem 0 0.8rem; }
+  .meta {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin: 0.2rem 0;
+  }
+  .meta strong { color: var(--text); }
+  #progress {
+    display: inline-block;
+    background: var(--accent-soft);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    border-radius: 1em;
+    padding: 0.05rem 0.7rem;
+    font-weight: 600;
+  }
+
+  section { margin-top: 2.5rem; }
+  h2 {
+    font-size: 1.35rem;
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 0.3rem;
+    margin: 0 0 0.8rem;
+  }
+  .section-intro { color: var(--muted); margin-top: 0; }
+
+  .banner {
+    border: 2px solid var(--warn);
+    background: var(--warn-soft);
+    padding: 0.8rem 1rem;
+    border-radius: 6px;
+    margin-top: 1.5rem;
+  }
+  .banner h2 { border: none; color: var(--warn); margin: 0 0 0.4rem; font-size: 1.1rem; }
+  .banner ul { margin: 0; padding-left: 1.2rem; }
+
+  .badge {
+    display: inline-block;
+    border: 1.5px solid currentColor;
+    border-radius: 1em;
+    padding: 0 0.55em;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+  .badge.observed { color: var(--ok); background: var(--ok-soft); }
+  .badge.inferred { color: var(--warn); background: var(--warn-soft); }
+  .badge.unobserved { color: var(--muted); background: #efefe9; }
+
+  ol.flow { list-style: none; margin: 0; padding: 0; counter-reset: step; }
+  ol.flow > li {
+    counter-increment: step;
+    margin: 0 0 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #fff;
+  }
+  ol.flow > li::before {
+    content: counter(step);
+    display: inline-block;
+    min-width: 1.7em;
+    text-align: center;
+    margin: 0.65rem 0 0 0.8rem;
+    font-weight: 700;
+    color: var(--accent);
+    border: 1.5px solid var(--accent);
+    border-radius: 50%;
+    font-size: 0.85rem;
+    padding: 0.1em 0.3em;
+  }
+  .node summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    list-style: none;
+    cursor: pointer;
+    padding: 0.65rem 0.9rem 0.65rem 0.4rem;
+    font-weight: 600;
+  }
+  .node summary::-webkit-details-marker { display: none; }
+  .node summary::after {
+    content: "▸";
+    margin-left: auto;
+    color: var(--muted);
+  }
+  .node details[open] > summary::after,
+  details[open] > summary::after { content: "▾"; }
+  .node-body { padding: 0 1rem 1rem 3rem; }
+  .node-body .note { margin-top: 0; }
+  .src-link {
+    font-size: 0.85rem;
+    color: var(--muted);
+    font-family: ui-monospace, Consolas, monospace;
+  }
+  .stale-flag {
+    color: var(--warn);
+    font-weight: 700;
+    font-family: inherit;
+  }
+  pre.code, pre.io {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.7rem 0.9rem;
+    overflow-x: auto;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    tab-size: 2;
+  }
+  pre.code { margin: 0.4rem 0 0.6rem; }
+  .io-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin: 0.6rem 0 0.2rem;
+  }
+  details.evidence {
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    padding: 0.4rem 0.8rem;
+    margin-top: 0.6rem;
+    background: #fbfbf8;
+  }
+  details.evidence > summary {
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  details.evidence.failed > summary { color: var(--bad); }
+  .cmd { font-size: 0.85rem; margin: 0.4rem 0; }
+  .cmd code { background: var(--code-bg); padding: 0.15em 0.4em; border-radius: 4px; }
+
+  article.challenge {
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.2rem 1.2rem;
+    margin: 0 0 1.6rem;
+    background: #fff;
+  }
+  article.challenge h3 { margin: 0 0 0.4rem; font-size: 1.1rem; }
+  .kind {
+    display: inline-block;
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    border-radius: 4px;
+    padding: 0.15rem 0.5rem;
+    margin-right: 0.4rem;
+    vertical-align: middle;
+  }
+  fieldset { border: 1px solid var(--border); border-radius: 6px; margin: 0.8rem 0; }
+  legend { font-weight: 700; font-size: 0.85rem; padding: 0 0.4rem; }
+  fieldset label {
+    display: block;
+    padding: 0.45rem 0.6rem;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  fieldset label:hover { background: var(--accent-soft); }
+  fieldset input[type="radio"] { margin-right: 0.5rem; }
+  button.check {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font: inherit;
+    font-weight: 700;
+    padding: 0.5rem 1.1rem;
+    cursor: pointer;
+  }
+  button.check:hover { filter: brightness(1.1); }
+  button.check:disabled { background: var(--muted); cursor: default; }
+  .feedback {
+    min-height: 1.6em;
+    margin: 0.7rem 0 0.2rem;
+    font-weight: 600;
+  }
+  .feedback.ok { color: var(--ok); }
+  .feedback.bad { color: var(--bad); }
+  details.hint, details.spoiler {
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
+    border-radius: 4px;
+    padding: 0.4rem 0.8rem;
+    margin: 0.5rem 0;
+    background: #fbfbf8;
+  }
+  details.spoiler { border-left-color: var(--warn); }
+  details.hint summary, details.spoiler summary {
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+  aside.verification {
+    margin-top: 0.9rem;
+    border-radius: 6px;
+    padding: 0.7rem 1rem;
+    font-size: 0.95rem;
+  }
+  aside.verification.verified { border: 2px solid var(--ok); background: var(--ok-soft); }
+  aside.verification.unverified { border: 2px dashed var(--muted); background: #f4f4ef; }
+  aside.verification details { margin-top: 0.4rem; }
+  aside.verification summary { cursor: pointer; font-weight: 600; }
+
+  #limits ul { padding-left: 1.2rem; }
+  footer {
+    margin-top: 3rem;
+    border-top: 1px solid var(--border);
+    padding-top: 1rem;
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+
+  @media (max-width: 520px) {
+    body { padding: 1rem 0.8rem 3rem; }
+    .node-body { padding-left: 1.2rem; }
+    article.challenge { padding: 0.8rem; }
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#challenges">Skip to challenges</a>
+<div id="app">
+<header class="lesson-header">
+<p class="kicker">Interactive code lesson</p>
+<h1>Where did the coupon discount go?</h1>
+<p class="objective">Follow one checkout through this small cart project and discover why reloading a saved cart keeps the coupon label but loses the discount.</p>
+<p class="meta">Feature: <strong>cart checkout and reload</strong> · Source revision: <code>not recorded</code> · <span id="progress">Solved 0/3</span></p>
+</header>
+<section id="flow">
+<h2>How this feature works</h2>
+<p class="section-intro">Open each step to see its code and the evidence behind it. <span class="badge observed">observed</span> means seen running in a recorded execution; <span class="badge inferred">inferred</span> means concluded from reading the code; <span class="badge unobserved">not observed</span> means not examined.</p>
+<ol class="flow">
+<li class="node" id="node-n-checkout">
+<details>
+<summary><span class="node-label">1. checkout command builds the cart and applies the coupon</span> <span class="badge observed">observed</span></summary>
+<div class="node-body"><p class="note">With a keyboard ($30 x1) and a cable ($12.50 x2), the recorded run prints subtotal 55, discount 5.5, total 49.5.</p>
+<p class="src-link">src/index.js:21-33</p>
+<pre class="code"><code>if (input.cmd === &quot;checkout&quot;) {
+  const cart = createCart();
+  for (const item of input.items ?? []) {
+    addItem(cart, item.sku, item.price, item.qty ?? 1);
+  }
+  const couponResult = input.coupon ? applyCoupon(cart, input.coupon) : null;
+  emit({
+    cmd: &quot;checkout&quot;,
+    coupon: cart.coupon,
+    couponResult,
+    totals: cart.totals,
+    saved: serialize(cart),
+  });</code></pre>
+<details class="evidence">
+<summary>Evidence e-checkout — execution (exit code 0)</summary>
+<p class="cmd">Command: <code>node src/index.js</code></p>
+<p class="io-label">Input (stdin)</p><pre class="io">{
+  &quot;cmd&quot;: &quot;checkout&quot;,
+  &quot;items&quot;: [
+    {
+      &quot;sku&quot;: &quot;keyboard&quot;,
+      &quot;price&quot;: 30,
+      &quot;qty&quot;: 1
+    },
+    {
+      &quot;sku&quot;: &quot;cable&quot;,
+      &quot;price&quot;: 12.5,
+      &quot;qty&quot;: 2
+    }
+  ],
+  &quot;coupon&quot;: &quot;TENPCT&quot;
+}</pre>
+<p class="io-label">Recorded stdout</p><pre class="io">{&quot;cmd&quot;:&quot;checkout&quot;,&quot;coupon&quot;:&quot;TENPCT&quot;,&quot;couponResult&quot;:{&quot;ok&quot;:true,&quot;code&quot;:&quot;TENPCT&quot;,&quot;discount&quot;:5.5,&quot;total&quot;:49.5},&quot;totals&quot;:{&quot;subtotal&quot;:55,&quot;discount&quot;:5.5,&quot;total&quot;:49.5},&quot;saved&quot;:{&quot;items&quot;:[{&quot;sku&quot;:&quot;keyboard&quot;,&quot;price&quot;:30,&quot;qty&quot;:1},{&quot;sku&quot;:&quot;cable&quot;,&quot;price&quot;:12.5,&quot;qty&quot;:2}],&quot;coupon&quot;:&quot;TENPCT&quot;}}
+</pre>
+<p class="src-link">entry src/index.js @ 8063c30eead4</p>
+</details></div>
+</details>
+</li>
+<li class="node" id="node-n-apply-coupon">
+<details>
+<summary><span class="node-label">2. applyCoupon computes the discount from the coupon rules</span> <span class="badge observed">observed</span></summary>
+<div class="node-body"><p class="note">TENPCT is 10% off, capped at $20. For subtotal 55 that is 5.5, under the cap.</p>
+<p class="src-link">src/pricing.js:9-26</p>
+<pre class="code"><code>export function applyCoupon(cart, code) {
+  const rule = COUPONS[code];
+  if (!rule) {
+    return { ok: false, reason: &quot;unknown coupon&quot; };
+  }
+  const subtotal = cart.totals.subtotal;
+  let discount;
+  if (rule.kind === &quot;fixed&quot;) {
+    discount = rule.value;
+  } else {
+    discount = Math.min(round2((subtotal * rule.value) / 100), rule.cap);
+  }
+  discount = round2(Math.min(discount, subtotal));
+  cart.coupon = code;
+  cart.totals.discount = discount;
+  cart.totals.total = round2(subtotal - discount);
+  return { ok: true, code, discount, total: cart.totals.total };
+}</code></pre>
+<details class="evidence">
+<summary>Evidence e-checkout — execution (exit code 0)</summary>
+<p class="cmd">Command: <code>node src/index.js</code></p>
+<p class="io-label">Input (stdin)</p><pre class="io">{
+  &quot;cmd&quot;: &quot;checkout&quot;,
+  &quot;items&quot;: [
+    {
+      &quot;sku&quot;: &quot;keyboard&quot;,
+      &quot;price&quot;: 30,
+      &quot;qty&quot;: 1
+    },
+    {
+      &quot;sku&quot;: &quot;cable&quot;,
+      &quot;price&quot;: 12.5,
+      &quot;qty&quot;: 2
+    }
+  ],
+  &quot;coupon&quot;: &quot;TENPCT&quot;
+}</pre>
+<p class="io-label">Recorded stdout</p><pre class="io">{&quot;cmd&quot;:&quot;checkout&quot;,&quot;coupon&quot;:&quot;TENPCT&quot;,&quot;couponResult&quot;:{&quot;ok&quot;:true,&quot;code&quot;:&quot;TENPCT&quot;,&quot;discount&quot;:5.5,&quot;total&quot;:49.5},&quot;totals&quot;:{&quot;subtotal&quot;:55,&quot;discount&quot;:5.5,&quot;total&quot;:49.5},&quot;saved&quot;:{&quot;items&quot;:[{&quot;sku&quot;:&quot;keyboard&quot;,&quot;price&quot;:30,&quot;qty&quot;:1},{&quot;sku&quot;:&quot;cable&quot;,&quot;price&quot;:12.5,&quot;qty&quot;:2}],&quot;coupon&quot;:&quot;TENPCT&quot;}}
+</pre>
+<p class="src-link">entry src/index.js @ 8063c30eead4</p>
+</details></div>
+</details>
+</li>
+<li class="node" id="node-n-serialize">
+<details>
+<summary><span class="node-label">3. serialize persists only the items and the coupon code</span> <span class="badge observed">observed</span></summary>
+<div class="node-body"><p class="note">The recorded checkout output shows the saved state: items plus coupon, with no totals inside.</p>
+<p class="src-link">src/store.js:5-7</p>
+<pre class="code"><code>export function serialize(cart) {
+  return { items: cart.items, coupon: cart.coupon };
+}</code></pre>
+<details class="evidence">
+<summary>Evidence e-checkout — execution (exit code 0)</summary>
+<p class="cmd">Command: <code>node src/index.js</code></p>
+<p class="io-label">Input (stdin)</p><pre class="io">{
+  &quot;cmd&quot;: &quot;checkout&quot;,
+  &quot;items&quot;: [
+    {
+      &quot;sku&quot;: &quot;keyboard&quot;,
+      &quot;price&quot;: 30,
+      &quot;qty&quot;: 1
+    },
+    {
+      &quot;sku&quot;: &quot;cable&quot;,
+      &quot;price&quot;: 12.5,
+      &quot;qty&quot;: 2
+    }
+  ],
+  &quot;coupon&quot;: &quot;TENPCT&quot;
+}</pre>
+<p class="io-label">Recorded stdout</p><pre class="io">{&quot;cmd&quot;:&quot;checkout&quot;,&quot;coupon&quot;:&quot;TENPCT&quot;,&quot;couponResult&quot;:{&quot;ok&quot;:true,&quot;code&quot;:&quot;TENPCT&quot;,&quot;discount&quot;:5.5,&quot;total&quot;:49.5},&quot;totals&quot;:{&quot;subtotal&quot;:55,&quot;discount&quot;:5.5,&quot;total&quot;:49.5},&quot;saved&quot;:{&quot;items&quot;:[{&quot;sku&quot;:&quot;keyboard&quot;,&quot;price&quot;:30,&quot;qty&quot;:1},{&quot;sku&quot;:&quot;cable&quot;,&quot;price&quot;:12.5,&quot;qty&quot;:2}],&quot;coupon&quot;:&quot;TENPCT&quot;}}
+</pre>
+<p class="src-link">entry src/index.js @ 8063c30eead4</p>
+</details></div>
+</details>
+</li>
+<li class="node" id="node-n-reload">
+<details>
+<summary><span class="node-label">4. reload restores the items and recalculates every total</span> <span class="badge observed">observed</span></summary>
+<div class="node-body"><p class="note">The recorded reload keeps coupon &quot;TENPCT&quot; on the cart but prints discount 0 and total 55.</p>
+<p class="src-link">src/store.js:9-17</p>
+<pre class="code"><code>export function reload(saved) {
+  const cart = {
+    items: Array.isArray(saved.items) ? saved.items : [],
+    coupon: saved.coupon ?? null,
+    totals: { subtotal: 0, discount: 0, total: 0 },
+  };
+  recompute(cart);
+  return cart;
+}</code></pre>
+<details class="evidence">
+<summary>Evidence e-reload — execution (exit code 0)</summary>
+<p class="cmd">Command: <code>node src/index.js</code></p>
+<p class="io-label">Input (stdin)</p><pre class="io">{
+  &quot;cmd&quot;: &quot;reload&quot;,
+  &quot;saved&quot;: {
+    &quot;items&quot;: [
+      {
+        &quot;sku&quot;: &quot;keyboard&quot;,
+        &quot;price&quot;: 30,
+        &quot;qty&quot;: 1
+      },
+      {
+        &quot;sku&quot;: &quot;cable&quot;,
+        &quot;price&quot;: 12.5,
+        &quot;qty&quot;: 2
+      }
+    ],
+    &quot;coupon&quot;: &quot;TENPCT&quot;
+  }
+}</pre>
+<p class="io-label">Recorded stdout</p><pre class="io">{&quot;cmd&quot;:&quot;reload&quot;,&quot;coupon&quot;:&quot;TENPCT&quot;,&quot;totals&quot;:{&quot;subtotal&quot;:55,&quot;discount&quot;:0,&quot;total&quot;:55}}
+</pre>
+<p class="src-link">entry src/index.js @ 8063c30eead4</p>
+</details></div>
+</details>
+</li>
+<li class="node" id="node-n-recompute">
+<details>
+<summary><span class="node-label">5. recompute resets the discount to 0 while recalculating</span> <span class="badge observed">observed</span></summary>
+<div class="node-body"><p class="note">reload() calls recompute(cart) and never re-applies the stored coupon, so the discount is gone after a reload even though the coupon label survives.</p>
+<p class="src-link">src/cart.js:16-21</p>
+<pre class="code"><code>export function recompute(cart) {
+  const subtotal = cart.items.reduce((sum, item) =&gt; sum + item.price * item.qty, 0);
+  cart.totals.subtotal = round2(subtotal);
+  cart.totals.discount = 0;
+  cart.totals.total = round2(subtotal);
+}</code></pre>
+<details class="evidence">
+<summary>Evidence e-reload — execution (exit code 0)</summary>
+<p class="cmd">Command: <code>node src/index.js</code></p>
+<p class="io-label">Input (stdin)</p><pre class="io">{
+  &quot;cmd&quot;: &quot;reload&quot;,
+  &quot;saved&quot;: {
+    &quot;items&quot;: [
+      {
+        &quot;sku&quot;: &quot;keyboard&quot;,
+        &quot;price&quot;: 30,
+        &quot;qty&quot;: 1
+      },
+      {
+        &quot;sku&quot;: &quot;cable&quot;,
+        &quot;price&quot;: 12.5,
+        &quot;qty&quot;: 2
+      }
+    ],
+    &quot;coupon&quot;: &quot;TENPCT&quot;
+  }
+}</pre>
+<p class="io-label">Recorded stdout</p><pre class="io">{&quot;cmd&quot;:&quot;reload&quot;,&quot;coupon&quot;:&quot;TENPCT&quot;,&quot;totals&quot;:{&quot;subtotal&quot;:55,&quot;discount&quot;:0,&quot;total&quot;:55}}
+</pre>
+<p class="src-link">entry src/index.js @ 8063c30eead4</p>
+</details></div>
+</details>
+</li>
+</ol></section>
+<section id="challenges">
+<h2>Challenges</h2>
+<article class="challenge" id="challenge-c-predict-total">
+<h3><span class="kind">predict</span>You run the checkout command with this input. What will totals.total be in the printed output?</h3>
+<p class="io-label">Input</p><pre class="io">{
+  &quot;cmd&quot;: &quot;checkout&quot;,
+  &quot;items&quot;: [
+    {
+      &quot;sku&quot;: &quot;keyboard&quot;,
+      &quot;price&quot;: 30,
+      &quot;qty&quot;: 1
+    },
+    {
+      &quot;sku&quot;: &quot;cable&quot;,
+      &quot;price&quot;: 12.5,
+      &quot;qty&quot;: 2
+    }
+  ],
+  &quot;coupon&quot;: &quot;TENPCT&quot;
+}</pre>
+<p class="meta">Code to inspect: <a href="#node-n-checkout">src/index.js:21-33</a> · <a href="#node-n-apply-coupon">src/pricing.js:9-26</a></p>
+<form class="challenge-form" data-challenge-id="c-predict-total">
+<fieldset><legend>Options</legend>
+<label><input type="radio" name="c-predict-total" value="o-49-5"> 49.5</label>
+<label><input type="radio" name="c-predict-total" value="o-55"> 55</label>
+<label><input type="radio" name="c-predict-total" value="o-50"> 50</label>
+<label><input type="radio" name="c-predict-total" value="o-44"> 44</label>
+</fieldset>
+<button type="submit" class="check">Check answer</button>
+<p class="feedback" role="status" aria-live="polite"></p>
+</form>
+<details class="hint"><summary>Hint 1</summary><p>First compute the subtotal from the items: 30 + (12.50 x 2).</p></details>
+<details class="hint"><summary>Hint 2</summary><p>TENPCT is 10% off, capped at $20. Compare 10% of the subtotal against the cap.</p></details>
+<details class="spoiler"><summary>Explanation (spoiler)</summary><p>The subtotal is 30 + 25 = 55. TENPCT takes min(10% of 55, cap 20) = 5.5, so total = 55 - 5.5 = 49.5. The recorded run printed exactly {&quot;subtotal&quot;:55,&quot;discount&quot;:5.5,&quot;total&quot;:49.5}.</p></details>
+<aside class="verification verified">
+<p><strong>✓ Verified against execution.</strong> The recorded run below is the ground truth for the correct answer. Evidence e-checkout.</p>
+<details><summary>Show the recorded run</summary><p class="io-label">stdout</p><pre class="io">{&quot;cmd&quot;:&quot;checkout&quot;,&quot;coupon&quot;:&quot;TENPCT&quot;,&quot;couponResult&quot;:{&quot;ok&quot;:true,&quot;code&quot;:&quot;TENPCT&quot;,&quot;discount&quot;:5.5,&quot;total&quot;:49.5},&quot;totals&quot;:{&quot;subtotal&quot;:55,&quot;discount&quot;:5.5,&quot;total&quot;:49.5},&quot;saved&quot;:{&quot;items&quot;:[{&quot;sku&quot;:&quot;keyboard&quot;,&quot;price&quot;:30,&quot;qty&quot;:1},{&quot;sku&quot;:&quot;cable&quot;,&quot;price&quot;:12.5,&quot;qty&quot;:2}],&quot;coupon&quot;:&quot;TENPCT&quot;}}
+</pre><p class="io-label">command</p><pre class="io">node src/index.js</pre></details>
+</aside>
+</article>
+<article class="challenge" id="challenge-c-trace-discount-zero">
+<h3><span class="kind">trace</span>After a reload, the cart still reports coupon &quot;TENPCT&quot; but totals.discount is 0. Which step makes the discount 0?</h3>
+<p class="meta">Code to inspect: <a href="#node-n-reload">src/store.js:9-17</a> · <a href="#node-n-recompute">src/cart.js:16-21</a></p>
+<form class="challenge-form" data-challenge-id="c-trace-discount-zero">
+<fieldset><legend>Options</legend>
+<label><input type="radio" name="c-trace-discount-zero" value="o-apply"> applyCoupon computing the discount</label>
+<label><input type="radio" name="c-trace-discount-zero" value="o-recompute"> recompute recalculating all totals from the items</label>
+<label><input type="radio" name="c-trace-discount-zero" value="o-serialize"> serialize dropping the totals from the saved state</label>
+<label><input type="radio" name="c-trace-discount-zero" value="o-emit"> the reload branch printing the wrong totals</label>
+</fieldset>
+<button type="submit" class="check">Check answer</button>
+<p class="feedback" role="status" aria-live="polite"></p>
+</form>
+<details class="hint"><summary>Hint 1</summary><p>The saved state has no totals at all, so the reload cannot just read them back.</p></details>
+<details class="hint"><summary>Hint 2</summary><p>Open step 5 (recompute) and look at what it writes into cart.totals.discount.</p></details>
+<details class="spoiler"><summary>Explanation (spoiler)</summary><p>serialize keeps only items and the coupon code, so reload must rebuild totals. It calls recompute(cart), which sets totals.discount = 0 and totals.total = subtotal. The recorded reload run confirms the result: coupon &quot;TENPCT&quot; with discount 0 and total 55.</p></details>
+<aside class="verification verified">
+<p><strong>✓ Verified against execution.</strong> The recorded run below is the ground truth for the correct answer. Evidence e-reload.</p>
+<details><summary>Show the recorded run</summary><p class="io-label">stdout</p><pre class="io">{&quot;cmd&quot;:&quot;reload&quot;,&quot;coupon&quot;:&quot;TENPCT&quot;,&quot;totals&quot;:{&quot;subtotal&quot;:55,&quot;discount&quot;:0,&quot;total&quot;:55}}
+</pre><p class="io-label">command</p><pre class="io">node src/index.js</pre></details>
+</aside>
+</article>
+<article class="challenge" id="challenge-c-locate-fault">
+<h3><span class="kind">locate</span>Where is the actual fault that loses the discount on reload?</h3>
+<p class="meta">Code to inspect: <a href="#node-n-reload">src/store.js:9-17</a> · <a href="#node-n-recompute">src/cart.js:16-21</a></p>
+<form class="challenge-form" data-challenge-id="c-locate-fault">
+<fieldset><legend>Options</legend>
+<label><input type="radio" name="c-locate-fault" value="o-reload-no-reapply"> store.js reload(): it recalculates totals but never re-applies the stored coupon</label>
+<label><input type="radio" name="c-locate-fault" value="o-recompute-design"> cart.js recompute(): resetting the discount to 0 is itself the bug</label>
+<label><input type="radio" name="c-locate-fault" value="o-pricing-bug"> pricing.js applyCoupon(): it computes the wrong discount</label>
+<label><input type="radio" name="c-locate-fault" value="o-print-bug"> index.js: the reload branch prints totals incorrectly</label>
+</fieldset>
+<button type="submit" class="check">Check answer</button>
+<p class="feedback" role="status" aria-live="polite"></p>
+</form>
+<details class="hint"><summary>Hint 1</summary><p>The checkout run proves applyCoupon and printing are fine: totals.total was 49.5 before saving.</p></details>
+<details class="hint"><summary>Hint 2</summary><p>recompute&#39;s reset is a documented contract: callers re-apply coupons after changing items. Which caller fails to do that?</p></details>
+<details class="spoiler"><summary>Explanation (spoiler)</summary><p>The recorded runs narrow it down: checkout prints a correct discounted total, so pricing and printing work; after reload the coupon code is still on the cart but the discount is 0. reload() in store.js rebuilds totals via recompute() and never re-applies the stored coupon. Fixing it means re-applying the coupon inside reload (or persisting the applied discount), not changing recompute&#39;s contract.</p></details>
+<aside class="verification verified">
+<p><strong>✓ Verified against execution.</strong> The recorded run below is the ground truth for the correct answer. Evidence e-reload.</p>
+<details><summary>Show the recorded run</summary><p class="io-label">stdout</p><pre class="io">{&quot;cmd&quot;:&quot;reload&quot;,&quot;coupon&quot;:&quot;TENPCT&quot;,&quot;totals&quot;:{&quot;subtotal&quot;:55,&quot;discount&quot;:0,&quot;total&quot;:55}}
+</pre><p class="io-label">command</p><pre class="io">node src/index.js</pre></details>
+</aside>
+</article>
+</section>
+<section id="limits">
+<h2>Limitations &amp; assumptions</h2>
+<ul>
+<li>This lesson runs against the synthetic cart fixture shipped with the project, not real user code.</li>
+<li>No git revision is recorded for the fixture; each file is pinned by its sha256 content hash in sourceSnapshot instead.</li>
+<li>Execution evidence covers the checkout and reload commands only; other code paths in the fixture were not run.</li>
+</ul></section>
+<footer>
+<p>Lesson <code>cart-discount-lost-on-reload</code> · lesson schema v1 · generated by <strong>I Didn&rsquo;t Write This</strong>. Answers are embedded in this file if you want to peek. This page works offline.</p>
+</footer>
+</div>
+<script id="lesson-data" type="application/json">{"id":"cart-discount-lost-on-reload","language":"en","ui":null,"challenges":[{"id":"c-predict-total","answer":"o-49-5","verified":true},{"id":"c-trace-discount-zero","answer":"o-recompute","verified":true},{"id":"c-locate-fault","answer":"o-reload-no-reapply","verified":true}]}</script>
+<script>
+(function () {
+  "use strict";
+  var lesson = JSON.parse(document.getElementById("lesson-data").textContent);
+  var ui = lesson.ui || {};
+  var strings = {
+    selectAnswer: ui.selectAnswer || "Select an answer first.",
+    correctVerified: ui.correctVerified || "✓ Correct. This answer is backed by the recorded execution shown below.",
+    correctPlain: ui.correctPlain || "✓ Correct. (No execution evidence recorded for this challenge.)",
+    incorrect: ui.incorrect || "✗ Not correct. Re-read the linked code, or open a hint.",
+    solvedProgress: ui.solvedProgress || "Solved {n}/{total}"
+  };
+  var solved = {};
+  var count = 0;
+  var progress = document.getElementById("progress");
+  function updateProgress() {
+    if (!progress) return;
+    progress.textContent = strings.solvedProgress.replace("{n}", String(count)).replace("{total}", String(lesson.challenges.length));
+  }
+  Array.prototype.forEach.call(document.querySelectorAll("form.challenge-form"), function (form) {
+    var id = form.getAttribute("data-challenge-id");
+    var challenge = null;
+    for (var i = 0; i < lesson.challenges.length; i++) {
+      if (lesson.challenges[i].id === id) { challenge = lesson.challenges[i]; break; }
+    }
+    if (!challenge) return;
+    var feedback = form.querySelector(".feedback");
+    var button = form.querySelector("button.check");
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      var picked = form.querySelector("input[type=radio]:checked");
+      if (!picked) {
+        feedback.textContent = strings.selectAnswer;
+        feedback.className = "feedback";
+        return;
+      }
+      if (picked.value === challenge.answer) {
+        if (!solved[id]) { solved[id] = true; count++; }
+        feedback.textContent = challenge.verified ? strings.correctVerified : strings.correctPlain;
+        feedback.className = "feedback ok";
+        if (button) button.disabled = true;
+      } else {
+        feedback.textContent = strings.incorrect;
+        feedback.className = "feedback bad";
+      }
+      updateProgress();
+    });
+  });
+  updateProgress();
+})();
+</script>
+</body>
+</html>

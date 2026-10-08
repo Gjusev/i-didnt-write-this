@@ -1,0 +1,10 @@
+{
+  "name": "mini-cart",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Synthetic teaching fixture: cart totals, coupons, and a reload path that loses the discount.",
+  "scripts": {
+    "test": "node --test test/"
+  }
+}

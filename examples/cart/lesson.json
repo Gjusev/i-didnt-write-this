@@ -1,0 +1,330 @@
+{
+  "schemaVersion": 1,
+  "id": "cart-discount-lost-on-reload",
+  "title": "Where did the coupon discount go?",
+  "objective": "Follow one checkout through this small cart project and discover why reloading a saved cart keeps the coupon label but loses the discount.",
+  "language": "en",
+  "feature": "cart checkout and reload",
+  "sourceSnapshot": {
+    "revision": null,
+    "files": {
+      "src/index.js": "8063c30eead4db1732d51f37bbbfa1abdd8eaa7a90df0a899edd36fa76b6665b",
+      "src/cart.js": "63db3fc1f42273af237075d57e844ef73c2cbbc8099bd90a34c9dbe607813e54",
+      "src/pricing.js": "a65ff9a1a9ca3650a25901fca47c6d47c21ff4a5fabbcc091a296a32f833da83",
+      "src/store.js": "5dea638c930eb214c659c7f9c2a891774cf4e062d21b8f7d66c8938ff403115c"
+    }
+  },
+  "snippets": [
+    {
+      "id": "s-checkout-branch",
+      "path": "src/index.js",
+      "startLine": 21,
+      "endLine": 33,
+      "code": "if (input.cmd === \"checkout\") {\n  const cart = createCart();\n  for (const item of input.items ?? []) {\n    addItem(cart, item.sku, item.price, item.qty ?? 1);\n  }\n  const couponResult = input.coupon ? applyCoupon(cart, input.coupon) : null;\n  emit({\n    cmd: \"checkout\",\n    coupon: cart.coupon,\n    couponResult,\n    totals: cart.totals,\n    saved: serialize(cart),\n  });",
+      "why": "The checkout command: build the cart, apply the coupon, print totals and the saved state."
+    },
+    {
+      "id": "s-apply-coupon",
+      "path": "src/pricing.js",
+      "startLine": 9,
+      "endLine": 26,
+      "code": "export function applyCoupon(cart, code) {\n  const rule = COUPONS[code];\n  if (!rule) {\n    return { ok: false, reason: \"unknown coupon\" };\n  }\n  const subtotal = cart.totals.subtotal;\n  let discount;\n  if (rule.kind === \"fixed\") {\n    discount = rule.value;\n  } else {\n    discount = Math.min(round2((subtotal * rule.value) / 100), rule.cap);\n  }\n  discount = round2(Math.min(discount, subtotal));\n  cart.coupon = code;\n  cart.totals.discount = discount;\n  cart.totals.total = round2(subtotal - discount);\n  return { ok: true, code, discount, total: cart.totals.total };\n}",
+      "why": "Coupon rules: fixed amount or percent with a cap, clamped to the subtotal."
+    },
+    {
+      "id": "s-serialize",
+      "path": "src/store.js",
+      "startLine": 5,
+      "endLine": 7,
+      "code": "export function serialize(cart) {\n  return { items: cart.items, coupon: cart.coupon };\n}",
+      "why": "Only items and the coupon code are persisted; totals are never stored."
+    },
+    {
+      "id": "s-reload",
+      "path": "src/store.js",
+      "startLine": 9,
+      "endLine": 17,
+      "code": "export function reload(saved) {\n  const cart = {\n    items: Array.isArray(saved.items) ? saved.items : [],\n    coupon: saved.coupon ?? null,\n    totals: { subtotal: 0, discount: 0, total: 0 },\n  };\n  recompute(cart);\n  return cart;\n}",
+      "why": "The reload path: totals are recalculated from the saved items. The stored coupon code is kept on the cart, but it is never re-applied."
+    },
+    {
+      "id": "s-recompute",
+      "path": "src/cart.js",
+      "startLine": 16,
+      "endLine": 21,
+      "code": "export function recompute(cart) {\n  const subtotal = cart.items.reduce((sum, item) => sum + item.price * item.qty, 0);\n  cart.totals.subtotal = round2(subtotal);\n  cart.totals.discount = 0;\n  cart.totals.total = round2(subtotal);\n}",
+      "why": "recompute rebuilds every total from the items list and resets the discount to 0. Callers are expected to re-apply coupons after changing items."
+    }
+  ],
+  "flow": {
+    "nodes": [
+      {
+        "id": "n-checkout",
+        "label": "checkout command builds the cart and applies the coupon",
+        "snippetId": "s-checkout-branch",
+        "state": "observed",
+        "evidenceIds": [
+          "e-checkout"
+        ],
+        "note": "With a keyboard ($30 x1) and a cable ($12.50 x2), the recorded run prints subtotal 55, discount 5.5, total 49.5."
+      },
+      {
+        "id": "n-apply-coupon",
+        "label": "applyCoupon computes the discount from the coupon rules",
+        "snippetId": "s-apply-coupon",
+        "state": "observed",
+        "evidenceIds": [
+          "e-checkout"
+        ],
+        "note": "TENPCT is 10% off, capped at $20. For subtotal 55 that is 5.5, under the cap."
+      },
+      {
+        "id": "n-serialize",
+        "label": "serialize persists only the items and the coupon code",
+        "snippetId": "s-serialize",
+        "state": "observed",
+        "evidenceIds": [
+          "e-checkout"
+        ],
+        "note": "The recorded checkout output shows the saved state: items plus coupon, with no totals inside."
+      },
+      {
+        "id": "n-reload",
+        "label": "reload restores the items and recalculates every total",
+        "snippetId": "s-reload",
+        "state": "observed",
+        "evidenceIds": [
+          "e-reload"
+        ],
+        "note": "The recorded reload keeps coupon \"TENPCT\" on the cart but prints discount 0 and total 55."
+      },
+      {
+        "id": "n-recompute",
+        "label": "recompute resets the discount to 0 while recalculating",
+        "snippetId": "s-recompute",
+        "state": "observed",
+        "evidenceIds": [
+          "e-reload"
+        ],
+        "note": "reload() calls recompute(cart) and never re-applies the stored coupon, so the discount is gone after a reload even though the coupon label survives."
+      }
+    ],
+    "links": [
+      {
+        "from": "n-checkout",
+        "to": "n-apply-coupon",
+        "label": "cart with subtotal 55"
+      },
+      {
+        "from": "n-checkout",
+        "to": "n-serialize",
+        "label": "cart to be saved"
+      },
+      {
+        "from": "n-serialize",
+        "to": "n-reload",
+        "label": "saved JSON on next load"
+      },
+      {
+        "from": "n-reload",
+        "to": "n-recompute",
+        "label": "cart rebuilt from saved items"
+      }
+    ]
+  },
+  "challenges": [
+    {
+      "id": "c-predict-total",
+      "kind": "predict",
+      "prompt": "You run the checkout command with this input. What will totals.total be in the printed output?",
+      "displayInput": {
+        "cmd": "checkout",
+        "items": [
+          {
+            "sku": "keyboard",
+            "price": 30,
+            "qty": 1
+          },
+          {
+            "sku": "cable",
+            "price": 12.5,
+            "qty": 2
+          }
+        ],
+        "coupon": "TENPCT"
+      },
+      "snippetIds": [
+        "s-checkout-branch",
+        "s-apply-coupon"
+      ],
+      "options": [
+        {
+          "id": "o-49-5",
+          "text": "49.5"
+        },
+        {
+          "id": "o-55",
+          "text": "55"
+        },
+        {
+          "id": "o-50",
+          "text": "50"
+        },
+        {
+          "id": "o-44",
+          "text": "44"
+        }
+      ],
+      "answer": "o-49-5",
+      "verifiedBy": [
+        "e-checkout"
+      ],
+      "hints": [
+        "First compute the subtotal from the items: 30 + (12.50 x 2).",
+        "TENPCT is 10% off, capped at $20. Compare 10% of the subtotal against the cap."
+      ],
+      "explanation": "The subtotal is 30 + 25 = 55. TENPCT takes min(10% of 55, cap 20) = 5.5, so total = 55 - 5.5 = 49.5. The recorded run printed exactly {\"subtotal\":55,\"discount\":5.5,\"total\":49.5}."
+    },
+    {
+      "id": "c-trace-discount-zero",
+      "kind": "trace",
+      "prompt": "After a reload, the cart still reports coupon \"TENPCT\" but totals.discount is 0. Which step makes the discount 0?",
+      "snippetIds": [
+        "s-reload",
+        "s-recompute"
+      ],
+      "options": [
+        {
+          "id": "o-apply",
+          "text": "applyCoupon computing the discount"
+        },
+        {
+          "id": "o-recompute",
+          "text": "recompute recalculating all totals from the items"
+        },
+        {
+          "id": "o-serialize",
+          "text": "serialize dropping the totals from the saved state"
+        },
+        {
+          "id": "o-emit",
+          "text": "the reload branch printing the wrong totals"
+        }
+      ],
+      "answer": "o-recompute",
+      "verifiedBy": [
+        "e-reload"
+      ],
+      "hints": [
+        "The saved state has no totals at all, so the reload cannot just read them back.",
+        "Open step 5 (recompute) and look at what it writes into cart.totals.discount."
+      ],
+      "explanation": "serialize keeps only items and the coupon code, so reload must rebuild totals. It calls recompute(cart), which sets totals.discount = 0 and totals.total = subtotal. The recorded reload run confirms the result: coupon \"TENPCT\" with discount 0 and total 55."
+    },
+    {
+      "id": "c-locate-fault",
+      "kind": "locate",
+      "prompt": "Where is the actual fault that loses the discount on reload?",
+      "snippetIds": [
+        "s-reload",
+        "s-recompute"
+      ],
+      "options": [
+        {
+          "id": "o-reload-no-reapply",
+          "text": "store.js reload(): it recalculates totals but never re-applies the stored coupon"
+        },
+        {
+          "id": "o-recompute-design",
+          "text": "cart.js recompute(): resetting the discount to 0 is itself the bug"
+        },
+        {
+          "id": "o-pricing-bug",
+          "text": "pricing.js applyCoupon(): it computes the wrong discount"
+        },
+        {
+          "id": "o-print-bug",
+          "text": "index.js: the reload branch prints totals incorrectly"
+        }
+      ],
+      "answer": "o-reload-no-reapply",
+      "verifiedBy": [
+        "e-reload"
+      ],
+      "hints": [
+        "The checkout run proves applyCoupon and printing are fine: totals.total was 49.5 before saving.",
+        "recompute's reset is a documented contract: callers re-apply coupons after changing items. Which caller fails to do that?"
+      ],
+      "explanation": "The recorded runs narrow it down: checkout prints a correct discounted total, so pricing and printing work; after reload the coupon code is still on the cart but the discount is 0. reload() in store.js rebuilds totals via recompute() and never re-applies the stored coupon. Fixing it means re-applying the coupon inside reload (or persisting the applied discount), not changing recompute's contract."
+    }
+  ],
+  "evidence": [
+    {
+      "id": "e-checkout",
+      "kind": "execution",
+      "command": "node src/index.js",
+      "runner": "node",
+      "entry": "src/index.js",
+      "input": {
+        "cmd": "checkout",
+        "items": [
+          {
+            "sku": "keyboard",
+            "price": 30,
+            "qty": 1
+          },
+          {
+            "sku": "cable",
+            "price": 12.5,
+            "qty": 2
+          }
+        ],
+        "coupon": "TENPCT"
+      },
+      "timeoutMs": 10000,
+      "exitCode": 0,
+      "timedOut": false,
+      "stdout": "{\"cmd\":\"checkout\",\"coupon\":\"TENPCT\",\"couponResult\":{\"ok\":true,\"code\":\"TENPCT\",\"discount\":5.5,\"total\":49.5},\"totals\":{\"subtotal\":55,\"discount\":5.5,\"total\":49.5},\"saved\":{\"items\":[{\"sku\":\"keyboard\",\"price\":30,\"qty\":1},{\"sku\":\"cable\",\"price\":12.5,\"qty\":2}],\"coupon\":\"TENPCT\"}}\n",
+      "stderr": "",
+      "entryFileHash": "8063c30eead4db1732d51f37bbbfa1abdd8eaa7a90df0a899edd36fa76b6665b",
+      "durationMs": 77
+    },
+    {
+      "id": "e-reload",
+      "kind": "execution",
+      "command": "node src/index.js",
+      "runner": "node",
+      "entry": "src/index.js",
+      "input": {
+        "cmd": "reload",
+        "saved": {
+          "items": [
+            {
+              "sku": "keyboard",
+              "price": 30,
+              "qty": 1
+            },
+            {
+              "sku": "cable",
+              "price": 12.5,
+              "qty": 2
+            }
+          ],
+          "coupon": "TENPCT"
+        }
+      },
+      "timeoutMs": 10000,
+      "exitCode": 0,
+      "timedOut": false,
+      "stdout": "{\"cmd\":\"reload\",\"coupon\":\"TENPCT\",\"totals\":{\"subtotal\":55,\"discount\":0,\"total\":55}}\n",
+      "stderr": "",
+      "entryFileHash": "8063c30eead4db1732d51f37bbbfa1abdd8eaa7a90df0a899edd36fa76b6665b",
+      "durationMs": 70
+    }
+  ],
+  "limitations": [
+    "This lesson runs against the synthetic cart fixture shipped with the project, not real user code.",
+    "No git revision is recorded for the fixture; each file is pinned by its sha256 content hash in sourceSnapshot instead.",
+    "Execution evidence covers the checkout and reload commands only; other code paths in the fixture were not run."
+  ]
+}

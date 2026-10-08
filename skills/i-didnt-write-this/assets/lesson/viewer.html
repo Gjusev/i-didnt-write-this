@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="__LANG__">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<style>
+  :root {
+    --bg: #fdfdfb;
+    --text: #1c1c1a;
+    --muted: #55554f;
+    --accent: #0b5cad;
+    --accent-soft: #e8f1f9;
+    --border: #cfcec6;
+    --code-bg: #f4f4ee;
+    --ok: #1a6b3c;
+    --ok-soft: #e9f4ed;
+    --warn: #8a6100;
+    --warn-soft: #fbf3e2;
+    --bad: #a13030;
+    --bad-soft: #faeeee;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0 auto;
+    padding: 1.5rem 1.25rem 4rem;
+    max-width: 62rem;
+    background: var(--bg);
+    color: var(--text);
+    font: 1rem/1.6 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  code, pre, kbd {
+    font-family: ui-monospace, "Cascadia Code", Consolas, "Courier New", monospace;
+  }
+  a { color: var(--accent); }
+  a:focus-visible, summary:focus-visible, button:focus-visible, input:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .skip {
+    position: absolute;
+    left: -999px;
+    top: 0;
+    background: var(--accent);
+    color: #fff;
+    padding: 0.5rem 1rem;
+    z-index: 10;
+  }
+  .skip:focus { left: 0.5rem; top: 0.5rem; }
+
+  .lesson-header h1 {
+    font-size: clamp(1.5rem, 4vw, 2.2rem);
+    line-height: 1.2;
+    margin: 0.2rem 0 0.6rem;
+  }
+  .kicker {
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--accent);
+    margin: 0;
+  }
+  .objective { font-size: 1.1rem; margin: 0.4rem 0 0.8rem; }
+  .meta {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin: 0.2rem 0;
+  }
+  .meta strong { color: var(--text); }
+  #progress {
+    display: inline-block;
+    background: var(--accent-soft);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    border-radius: 1em;
+    padding: 0.05rem 0.7rem;
+    font-weight: 600;
+  }
+
+  section { margin-top: 2.5rem; }
+  h2 {
+    font-size: 1.35rem;
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 0.3rem;
+    margin: 0 0 0.8rem;
+  }
+  .section-intro { color: var(--muted); margin-top: 0; }
+
+  .banner {
+    border: 2px solid var(--warn);
+    background: var(--warn-soft);
+    padding: 0.8rem 1rem;
+    border-radius: 6px;
+    margin-top: 1.5rem;
+  }
+  .banner h2 { border: none; color: var(--warn); margin: 0 0 0.4rem; font-size: 1.1rem; }
+  .banner ul { margin: 0; padding-left: 1.2rem; }
+
+  .badge {
+    display: inline-block;
+    border: 1.5px solid currentColor;
+    border-radius: 1em;
+    padding: 0 0.55em;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+  .badge.observed { color: var(--ok); background: var(--ok-soft); }
+  .badge.inferred { color: var(--warn); background: var(--warn-soft); }
+  .badge.unobserved { color: var(--muted); background: #efefe9; }
+
+  ol.flow { list-style: none; margin: 0; padding: 0; counter-reset: step; }
+  ol.flow > li {
+    counter-increment: step;
+    margin: 0 0 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #fff;
+  }
+  ol.flow > li::before {
+    content: counter(step);
+    display: inline-block;
+    min-width: 1.7em;
+    text-align: center;
+    margin: 0.65rem 0 0 0.8rem;
+    font-weight: 700;
+    color: var(--accent);
+    border: 1.5px solid var(--accent);
+    border-radius: 50%;
+    font-size: 0.85rem;
+    padding: 0.1em 0.3em;
+  }
+  .node summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    list-style: none;
+    cursor: pointer;
+    padding: 0.65rem 0.9rem 0.65rem 0.4rem;
+    font-weight: 600;
+  }
+  .node summary::-webkit-details-marker { display: none; }
+  .node summary::after {
+    content: "▸";
+    margin-left: auto;
+    color: var(--muted);
+  }
+  .node details[open] > summary::after,
+  details[open] > summary::after { content: "▾"; }
+  .node-body { padding: 0 1rem 1rem 3rem; }
+  .node-body .note { margin-top: 0; }
+  .src-link {
+    font-size: 0.85rem;
+    color: var(--muted);
+    font-family: ui-monospace, Consolas, monospace;
+  }
+  .stale-flag {
+    color: var(--warn);
+    font-weight: 700;
+    font-family: inherit;
+  }
+  pre.code, pre.io {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.7rem 0.9rem;
+    overflow-x: auto;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    tab-size: 2;
+  }
+  pre.code { margin: 0.4rem 0 0.6rem; }
+  .io-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin: 0.6rem 0 0.2rem;
+  }
+  details.evidence {
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    padding: 0.4rem 0.8rem;
+    margin-top: 0.6rem;
+    background: #fbfbf8;
+  }
+  details.evidence > summary {
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  details.evidence.failed > summary { color: var(--bad); }
+  .cmd { font-size: 0.85rem; margin: 0.4rem 0; }
+  .cmd code { background: var(--code-bg); padding: 0.15em 0.4em; border-radius: 4px; }
+
+  article.challenge {
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.2rem 1.2rem;
+    margin: 0 0 1.6rem;
+    background: #fff;
+  }
+  article.challenge h3 { margin: 0 0 0.4rem; font-size: 1.1rem; }
+  .kind {
+    display: inline-block;
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    border-radius: 4px;
+    padding: 0.15rem 0.5rem;
+    margin-right: 0.4rem;
+    vertical-align: middle;
+  }
+  fieldset { border: 1px solid var(--border); border-radius: 6px; margin: 0.8rem 0; }
+  legend { font-weight: 700; font-size: 0.85rem; padding: 0 0.4rem; }
+  fieldset label {
+    display: block;
+    padding: 0.45rem 0.6rem;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  fieldset label:hover { background: var(--accent-soft); }
+  fieldset input[type="radio"] { margin-right: 0.5rem; }
+  button.check {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font: inherit;
+    font-weight: 700;
+    padding: 0.5rem 1.1rem;
+    cursor: pointer;
+  }
+  button.check:hover { filter: brightness(1.1); }
+  button.check:disabled { background: var(--muted); cursor: default; }
+  .feedback {
+    min-height: 1.6em;
+    margin: 0.7rem 0 0.2rem;
+    font-weight: 600;
+  }
+  .feedback.ok { color: var(--ok); }
+  .feedback.bad { color: var(--bad); }
+  details.hint, details.spoiler {
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
+    border-radius: 4px;
+    padding: 0.4rem 0.8rem;
+    margin: 0.5rem 0;
+    background: #fbfbf8;
+  }
+  details.spoiler { border-left-color: var(--warn); }
+  details.hint summary, details.spoiler summary {
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+  aside.verification {
+    margin-top: 0.9rem;
+    border-radius: 6px;
+    padding: 0.7rem 1rem;
+    font-size: 0.95rem;
+  }
+  aside.verification.verified { border: 2px solid var(--ok); background: var(--ok-soft); }
+  aside.verification.unverified { border: 2px dashed var(--muted); background: #f4f4ef; }
+  aside.verification details { margin-top: 0.4rem; }
+  aside.verification summary { cursor: pointer; font-weight: 600; }
+
+  #limits ul { padding-left: 1.2rem; }
+  footer {
+    margin-top: 3rem;
+    border-top: 1px solid var(--border);
+    padding-top: 1rem;
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+
+  @media (max-width: 520px) {
+    body { padding: 1rem 0.8rem 3rem; }
+    .node-body { padding-left: 1.2rem; }
+    article.challenge { padding: 0.8rem; }
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#challenges">__SKIP_CHALLENGES__</a>
+<div id="app">
+__CONTENT__
+</div>
+<script id="lesson-data" type="application/json">__LESSON_DATA__</script>
+<script>
+(function () {
+  "use strict";
+  var lesson = JSON.parse(document.getElementById("lesson-data").textContent);
+  var ui = lesson.ui || {};
+  var strings = {
+    selectAnswer: ui.selectAnswer || "Select an answer first.",
+    correctVerified: ui.correctVerified || "✓ Correct. This answer is backed by the recorded execution shown below.",
+    correctPlain: ui.correctPlain || "✓ Correct. (No execution evidence recorded for this challenge.)",
+    incorrect: ui.incorrect || "✗ Not correct. Re-read the linked code, or open a hint.",
+    solvedProgress: ui.solvedProgress || "Solved {n}/{total}"
+  };
+  var solved = {};
+  var count = 0;
+  var progress = document.getElementById("progress");
+  function updateProgress() {
+    if (!progress) return;
+    progress.textContent = strings.solvedProgress.replace("{n}", String(count)).replace("{total}", String(lesson.challenges.length));
+  }
+  Array.prototype.forEach.call(document.querySelectorAll("form.challenge-form"), function (form) {
+    var id = form.getAttribute("data-challenge-id");
+    var challenge = null;
+    for (var i = 0; i < lesson.challenges.length; i++) {
+      if (lesson.challenges[i].id === id) { challenge = lesson.challenges[i]; break; }
+    }
+    if (!challenge) return;
+    var feedback = form.querySelector(".feedback");
+    var button = form.querySelector("button.check");
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      var picked = form.querySelector("input[type=radio]:checked");
+      if (!picked) {
+        feedback.textContent = strings.selectAnswer;
+        feedback.className = "feedback";
+        return;
+      }
+      if (picked.value === challenge.answer) {
+        if (!solved[id]) { solved[id] = true; count++; }
+        feedback.textContent = challenge.verified ? strings.correctVerified : strings.correctPlain;
+        feedback.className = "feedback ok";
+        if (button) button.disabled = true;
+      } else {
+        feedback.textContent = strings.incorrect;
+        feedback.className = "feedback bad";
+      }
+      updateProgress();
+    });
+  });
+  updateProgress();
+})();
+</script>
+</body>
+</html>
