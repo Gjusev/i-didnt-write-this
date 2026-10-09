@@ -10,7 +10,7 @@ import { buildHtml } from "../skills/i-didnt-write-this/assets/toolkit.mjs";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = fs.mkdtempSync(path.join(os.tmpdir(), "idwt-e2e-"));
 
-const demoLessonPath = path.join(repoRoot, "examples", "cart", "lesson.json");
+const demoLessonPath = path.join(repoRoot, "tests", "fixtures", "cart-lesson.json");
 const cartRepo = path.join(repoRoot, "fixtures", "cart");
 
 function urlFor(name) {
@@ -20,8 +20,16 @@ function urlFor(name) {
 export default async function globalSetup() {
   const demo = JSON.parse(fs.readFileSync(demoLessonPath, "utf8"));
 
-  // 1. The committed demo page, byte for byte as shipped.
-  const demoUrl = pathToFileURL(demoLessonPath.replace(/lesson\.json$/, "lesson.html")).href;
+  // 1. The reference pages, built with the real pipeline from the test fixtures.
+  const demoUrl = urlFor("demo.html");
+  const limiterLesson = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, "tests", "fixtures", "limiter-lesson.json"), "utf8")
+  );
+  fs.writeFileSync(path.join(outDir, "demo.html"), (await buildHtml(demo, cartRepo)).html);
+  fs.writeFileSync(
+    path.join(outDir, "limiter.html"),
+    (await buildHtml(limiterLesson, path.join(repoRoot, "fixtures", "limiter"))).html
+  );
 
   // 2. Same lesson with every challenge unverified.
   const unverified = structuredClone(demo);
@@ -48,7 +56,7 @@ export default async function globalSetup() {
 
   const manifest = {
     demo: demoUrl,
-    limiter: pathToFileURL(path.join(repoRoot, "examples", "limiter", "lesson.html")).href,
+    limiter: urlFor("limiter.html"),
     unverified: urlFor("unverified.html"),
     hostile: urlFor("hostile.html"),
     stale: urlFor("stale.html"),

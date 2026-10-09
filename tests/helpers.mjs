@@ -6,8 +6,10 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 
 export { repoRoot };
 export const CART_REPO = path.join(repoRoot, "fixtures", "cart");
+export const LIMITER_REPO = path.join(repoRoot, "fixtures", "limiter");
 export const TOOLKIT = path.join(repoRoot, "skills", "i-didnt-write-this", "assets", "toolkit.mjs");
-export const DEMO_LESSON_PATH = path.join(repoRoot, "examples", "cart", "lesson.json");
+export const DEMO_LESSON_PATH = path.join(repoRoot, "tests", "fixtures", "cart-lesson.json");
+export const LIMITER_LESSON_PATH = path.join(repoRoot, "tests", "fixtures", "limiter-lesson.json");
 
 export function loadDemoLesson() {
   return JSON.parse(fs.readFileSync(DEMO_LESSON_PATH, "utf8"));

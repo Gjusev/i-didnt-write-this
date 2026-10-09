@@ -18,10 +18,8 @@ jobs:
           node-version: ${{ matrix.node }}
       - name: Run toolkit and fixture tests
         run: npm test
-      - name: Verify demo evidence and rebuild demo HTML
-        run: npm run demo
-      - name: Demo HTML must be reproducible byte for byte
-        run: git diff --exit-code -- examples/
+      - name: Reference lessons must verify against their fixtures
+        run: node skills/i-didnt-write-this/assets/toolkit.mjs verify tests/fixtures/cart-lesson.json --repo fixtures/cart && node skills/i-didnt-write-this/assets/toolkit.mjs verify tests/fixtures/limiter-lesson.json --repo fixtures/limiter
 
   e2e:
     runs-on: ubuntu-latest

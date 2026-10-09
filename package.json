@@ -1,6 +1,6 @@
 {
   "name": "i-didnt-write-this",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Turn one feature of a JavaScript or TypeScript project into an interactive, evidence-backed lesson.",
   "type": "module",
   "license": "MIT",
@@ -30,15 +30,12 @@
   },
   "files": [
     "skills",
-    "examples",
-    "fixtures",
-    "scripts"
+    "fixtures"
   ],
   "scripts": {
     "test": "node --test \"tests/**/*.test.mjs\" \"fixtures/*/test/*.test.mjs\"",
     "test:e2e": "playwright test",
-    "test:all": "npm test && npm run test:e2e",
-    "demo": "node scripts/demo.mjs"
+    "test:all": "npm test && npm run test:e2e"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
