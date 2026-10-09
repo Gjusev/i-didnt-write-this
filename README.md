@@ -1,5 +1,7 @@
 # I Didn't Write This
 
+[![skills.sh](https://skills.sh/b/Gjusev/i-didnt-write-this)](https://skills.sh/Gjusev/i-didnt-write-this)
+
 Vibe-coded it? Now understand it.
 
 An agent skill that turns **one feature** of your JavaScript or TypeScript
@@ -11,12 +13,29 @@ Everything runs locally. No accounts, no cloud, no telemetry.
 
 ## Install
 
-You need [Node.js](https://nodejs.org) >= 22. Then get the skill folder onto
-your machine — clone this repository, or use the npm package:
+The quickest way, in any project — the [skills.sh](https://skills.sh)
+installer copies the skill in as plain files you own, for whichever coding
+agents you use (Claude Code, Codex, Cursor, …):
 
 ```sh
-npm install -g i-didnt-write-this   # gives you the `idwt` CLI everywhere
+npx skills@latest add Gjusev/i-didnt-write-this
 ```
+
+Non-interactive, e.g. just Claude Code:
+
+```sh
+npx skills@latest add Gjusev/i-didnt-write-this -s i-didnt-write-this -a claude-code --copy
+```
+
+Requires [Node.js](https://nodejs.org) >= 22. Two alternatives:
+
+```sh
+npm install -g i-didnt-write-this   # just the `idwt` CLI (skill ships inside the package)
+cp -r skills/i-didnt-write-this ~/.claude/skills/   # manual copy from a clone
+```
+
+Install **before** starting your agent session, so the skill is discovered on
+startup.
 
 ## Use it with your agent
 
@@ -26,20 +45,9 @@ up depends on your agent:
 
 ### Claude Code *(verified: auto-discovery tested end to end)*
 
-Copy the skill into Claude Code's skills directory (user-level or per project)
+Install with the skills.sh installer (see [Install](#install)) or copy the
+skill into `~/.claude/skills/` (user-level) or `.claude/skills/` (per project)
 **before starting the session**, then just ask naturally:
-
-```sh
-# user-level (all your projects)
-mkdir -p ~/.claude/skills
-cp -r <skill-source>/skills/i-didnt-write-this ~/.claude/skills/
-
-# or project-level (checked in or copied, before the session starts)
-mkdir -p .claude/skills
-cp -r <skill-source>/skills/i-didnt-write-this .claude/skills/
-```
-
-Then:
 
 > “I didn't write this code — help me understand how the discount logic works
 > in this project, with exercises.”
