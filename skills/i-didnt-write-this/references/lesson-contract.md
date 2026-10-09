@@ -147,7 +147,12 @@ Copy it from the command's JSON output; do not retype it.
 
 `verify` re-runs every entry against the repo and compares `exitCode`,
 `timedOut`, and `stdout` byte for byte. A mismatch means the lesson no longer
-describes this repository — fix the code or regenerate the lesson.
+describes this repository — fix the code or regenerate the lesson. Re-running
+a `runner` other than plain `node` is refused unless `verify` is invoked with
+`--allow-custom-runner` (it executes commands outside the repository, so it is
+an explicit decision). A custom runner whose binary path contains spaces must
+carry its own double quotes inside the string, e.g.
+`"C:\Program Files\nodejs\node.exe" --flag`.
 
 ### Driver evidence (`addedFiles`)
 

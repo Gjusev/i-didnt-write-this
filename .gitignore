@@ -28,6 +28,7 @@
 /playwright-report/
 /test-results/
 /.playwright-mcp/
+/e2e/.build-manifest.json
 
 # Dependencies and build/test output.
 node_modules/

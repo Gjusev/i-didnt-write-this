@@ -34,6 +34,15 @@ const ID_RE = /^[a-z0-9][a-z0-9-]*$/;
 // Shared helpers
 // ---------------------------------------------------------------------------
 
+// Split a runner command into parts, honoring double-quoted binary paths
+// (e.g. "C:\Program Files\nodejs\node.exe" --flag).
+function splitRunnerCommand(runner) {
+  if (typeof runner !== "string" || runner.trim() === "") return null;
+  return (runner.match(/"[^"]*"|\S+/g) || []).map((part) =>
+    part.length > 1 && part.startsWith('"') && part.endsWith('"') ? part.slice(1, -1) : part
+  );
+}
+
 export function sha256Content(content) {
   return createHash("sha256").update(content, "utf8").digest("hex");
 }
@@ -44,6 +53,8 @@ export async function sha256File(absPath) {
 }
 
 // Resolve a repo-relative path, rejecting escapes. Returns { normalized, abs }.
+// Backslashes are accepted as separators so lessons authored on Windows verify
+// identically on POSIX.
 export function resolveInside(repoRoot, relPath, label = "path") {
   if (typeof relPath !== "string" || relPath === "") {
     throw new Error(`${label} must be a non-empty relative path`);
@@ -51,7 +62,7 @@ export function resolveInside(repoRoot, relPath, label = "path") {
   if (path.isAbsolute(relPath) || /^[a-zA-Z]:[\\/]/.test(relPath)) {
     throw new Error(`${label} must be relative, got: ${relPath}`);
   }
-  const normalized = path.normalize(relPath).split(path.sep).join("/");
+  const normalized = path.normalize(relPath.split("\\").join("/")).split(path.sep).join("/");
   if (normalized === ".." || normalized.startsWith("../") || normalized.includes("/..") || normalized === ".") {
     throw new Error(`${label} escapes the repository: ${relPath}`);
   }
@@ -152,7 +163,7 @@ export async function runCase(opts) {
     if (typeof input === "string") inputStr = input;
     else if (input !== null && input !== undefined) inputStr = JSON.stringify(input);
 
-    const runnerParts = runner ? runner.split(/\s+/).filter(Boolean) : [process.execPath];
+    const runnerParts = splitRunnerCommand(runner) || [process.execPath];
     const runnerDisplay = runnerParts.length === 1 && runnerParts[0] === process.execPath ? "node" : runnerParts.join(" ");
     const started = Date.now();
     const res = spawnSync(runnerParts[0], [...runnerParts.slice(1), path.join(workDir, entryInfo.normalized)], {
@@ -513,7 +524,11 @@ export async function checkLesson(lesson, repoRoot) {
 }
 
 // Re-run every execution evidence entry and compare against the recorded result.
-export async function verifyLesson(lesson, repoRoot) {
+// Custom runners are refused unless explicitly allowed: a lesson file from
+// somewhere else should not be able to make `verify` execute arbitrary
+// commands that are not the repository's own entry.
+export async function verifyLesson(lesson, repoRoot, opts = {}) {
+  const { allowCustomRunner = false } = opts;
   const check = await checkLesson(lesson, repoRoot);
   const errors = [...check.errors];
   const warnings = [...check.warnings];
@@ -522,6 +537,10 @@ export async function verifyLesson(lesson, repoRoot) {
   if (check.ok) {
     for (const e of lesson.evidence) {
       if (e.kind !== "execution") continue;
+      if (e.runner && e.runner !== "node" && !allowCustomRunner) {
+        errors.push(`evidence ${e.id}: uses custom runner "${e.runner}"; re-running it needs --allow-custom-runner (it executes commands outside the repository)`);
+        continue;
+      }
       reran++;
       let actual;
       try {
@@ -922,7 +941,9 @@ async function main() {
         process.exit(2);
       }
       const lesson = await readLesson(rest[0]);
-      const report = await verifyLesson(lesson, requireOpt(opts, "repo"));
+      const report = await verifyLesson(lesson, requireOpt(opts, "repo"), {
+        allowCustomRunner: Boolean(opts["allow-custom-runner"]),
+      });
       printReport(report);
       if (!report.ok) process.exit(1);
     } else if (cmd === "build") {

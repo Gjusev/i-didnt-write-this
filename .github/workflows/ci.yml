@@ -22,3 +22,17 @@ jobs:
         run: npm run demo
       - name: Demo HTML must be reproducible byte for byte
         run: git diff --exit-code -- examples/
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dev dependencies
+        run: npm ci
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+      - name: Run the browser test suite
+        run: npm run test:e2e

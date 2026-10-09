@@ -10,6 +10,11 @@
   },
   "scripts": {
     "test": "node --test \"tests/**/*.test.mjs\" \"fixtures/*/test/*.test.mjs\"",
+    "test:e2e": "playwright test",
+    "test:all": "npm test && npm run test:e2e",
     "demo": "node skills/i-didnt-write-this/assets/toolkit.mjs verify examples/cart/lesson.json --repo fixtures/cart && node skills/i-didnt-write-this/assets/toolkit.mjs build examples/cart/lesson.json --repo fixtures/cart --output examples/cart/lesson.html"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.0"
   }
 }

@@ -65,13 +65,21 @@ The lesson format is documented in
 ## Development
 
 ```sh
-npm test      # toolkit + fixture tests: contract validation, freshness, executor, escaping, CLI
-npm run demo  # re-verifies the demo lesson's evidence and rebuilds its HTML
+npm test          # toolkit + fixture tests: contract validation, freshness, executor, escaping, CLI
+npm run test:e2e  # Playwright browser suite (challenges, keyboard, escaping, offline, responsive)
+npm run test:all  # both
+npm run demo      # re-verifies the demo lesson's evidence and rebuilds its HTML
 ```
+
+The E2E suite needs a one-time local browser install:
+`npx playwright install chromium`. It builds its lesson variants with the same
+toolkit pipeline the skill uses and opens them via `file://` — no server, no
+network.
 
 - `fixtures/cart`, `fixtures/limiter` — synthetic teaching projects with known
   behavior and their own test suites.
-- `tests/` — the toolkit's own test suite (plain `node:test`, no dependencies).
+- `tests/` — the toolkit's own test suite (plain `node:test`).
+- `e2e/` — the browser suite (`@playwright/test` is the only dev dependency).
 - `examples/cart/` — a committed demo lesson; `npm run demo` must reproduce
   its HTML byte for byte.
 
