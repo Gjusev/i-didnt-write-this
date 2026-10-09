@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { runCase, extractSnippet } from "../skills/i-didnt-write-this/assets/toolkit.mjs";
+import { runCase, extractSnippet, verifyLesson } from "../skills/i-didnt-write-this/assets/toolkit.mjs";
 import { CART_REPO, hashTree } from "./helpers.mjs";
 
 const CHECKOUT_INPUT = {
@@ -97,4 +97,74 @@ test("runCase copies the repository but skips excluded top-level directories", a
   } finally {
     fs.rmSync(record.workDir, { recursive: true, force: true });
   }
+});
+
+test("runCase injects driver files and records them verbatim", async () => {
+  const driver = [
+    'import { reload } from "./src/store.js";',
+    "const cart = reload({ items: [{ sku: 'keyboard', price: 30, qty: 1 }], coupon: 'TENPCT' });",
+    "process.stdout.write(JSON.stringify({ discount: cart.totals.discount }));",
+    "",
+  ].join("\n");
+  const record = await runCase({
+    repoRoot: CART_REPO,
+    entry: "__driver.js",
+    input: null,
+    addFiles: { "__driver.js": driver },
+  });
+  assert.equal(record.exitCode, 0);
+  assert.deepEqual(JSON.parse(record.stdout), { discount: 0 });
+  assert.deepEqual(record.addedFiles, { "__driver.js": driver });
+});
+
+test("driver files may not shadow existing repository files", async () => {
+  await assert.rejects(
+    runCase({
+      repoRoot: CART_REPO,
+      entry: "src/index.js",
+      input: null,
+      addFiles: { "src/store.js": "export function reload() { return { fake: true }; }" },
+    }),
+    /must not shadow real files/
+  );
+});
+
+test("verify replays evidence with driver files byte for byte", async () => {
+  const record = await runCase({
+    repoRoot: CART_REPO,
+    entry: "__probe.js",
+    input: null,
+    addFiles: {
+      "__probe.js": [
+        'import { applyCoupon } from "./src/pricing.js";',
+        "const cart = { items: [], coupon: null, totals: { subtotal: 55, discount: 0, total: 0 } };",
+        "const r = applyCoupon(cart, 'TENPCT');",
+        "process.stdout.write(JSON.stringify(r));",
+        "",
+      ].join("\n"),
+    },
+  });
+  assert.equal(record.exitCode, 0);
+  const lesson = {
+    schemaVersion: 1,
+    id: "driver-evidence-check",
+    title: "t",
+    objective: "o",
+    language: "en",
+    feature: "f",
+    sourceSnapshot: { revision: null, files: { "src/index.js": record.entryFileHash } },
+    snippets: [],
+    flow: {
+      nodes: [{ id: "n1", label: "coupon math", snippetId: undefined, state: "inferred", evidenceIds: [] }],
+      links: [],
+    },
+    challenges: [
+      { id: "c1", kind: "predict", prompt: "p", options: [{ id: "a", text: "1" }, { id: "b", text: "2" }], answer: "a", hints: [], explanation: "e" },
+    ],
+    evidence: [Object.assign({ id: "e-driver" }, record)],
+    limitations: [],
+  };
+  const report = await verifyLesson(lesson, CART_REPO);
+  assert.equal(report.ok, true, JSON.stringify(report.errors));
+  assert.equal(report.reran, 1);
 });

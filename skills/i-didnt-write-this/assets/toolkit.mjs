@@ -98,15 +98,39 @@ export async function extractSnippet(repoRoot, relPath, startLine, endLine) {
 // ---------------------------------------------------------------------------
 
 export async function runCase(opts) {
-  const { repoRoot, entry, input = null, timeoutMs = DEFAULT_TIMEOUT_MS, runner = null, keepWorkDir = false } = opts;
+  const { repoRoot, entry, input = null, timeoutMs = DEFAULT_TIMEOUT_MS, runner = null, keepWorkDir = false, addFiles = null } = opts;
   const entryInfo = resolveInside(repoRoot, entry, "entry");
   const repoAbs = path.resolve(repoRoot);
 
+  // Optional driver files injected into the isolated copy. They are recorded
+  // verbatim in the evidence so `verify` can replay them byte for byte.
+  // Shadowing real repository files is refused: a driver must not fake the
+  // code the lesson claims to exercise.
+  const addedFiles = {};
+  if (addFiles && typeof addFiles === "object") {
+    for (const [rel, content] of Object.entries(addFiles)) {
+      const info = resolveInside(repoRoot, rel, "added file");
+      const exists = await fs.stat(path.join(repoAbs, info.normalized)).catch(() => null);
+      if (exists) {
+        throw new Error(`added file ${info.normalized} already exists in the repository; drivers must not shadow real files`);
+      }
+      if (typeof content !== "string" || content === "") {
+        throw new Error(`added file ${info.normalized} needs non-empty content`);
+      }
+      addedFiles[info.normalized] = content;
+    }
+  }
+
+  // The entry may be a repository file, or a driver file supplied via addFiles.
   const stat = await fs.stat(entryInfo.abs).catch(() => null);
-  if (!stat || !stat.isFile()) {
+  let entryHash;
+  if (stat && stat.isFile()) {
+    entryHash = await sha256File(entryInfo.abs);
+  } else if (Object.prototype.hasOwnProperty.call(addedFiles, entryInfo.normalized)) {
+    entryHash = sha256Content(addedFiles[entryInfo.normalized]);
+  } else {
     throw new Error(`entry not found in repository: ${entry}`);
   }
-  const entryHash = await sha256File(entryInfo.abs);
 
   const workDir = await fs.mkdtemp(path.join(os.tmpdir(), "idwt-"));
   try {
@@ -118,6 +142,11 @@ export async function runCase(opts) {
         return !COPY_EXCLUDE.has(rel.split(path.sep)[0]);
       },
     });
+    for (const [rel, content] of Object.entries(addedFiles)) {
+      const dest = path.join(workDir, rel);
+      await fs.mkdir(path.dirname(dest), { recursive: true });
+      await fs.writeFile(dest, content, "utf8");
+    }
 
     let inputStr = "";
     if (typeof input === "string") inputStr = input;
@@ -150,6 +179,7 @@ export async function runCase(opts) {
       entryFileHash: entryHash,
       durationMs,
     };
+    if (Object.keys(addedFiles).length > 0) record.addedFiles = addedFiles;
     if (res.error && res.error.code !== "ETIMEDOUT") {
       record.spawnError = res.error.message;
     }
@@ -272,6 +302,20 @@ export function validateLesson(lesson) {
       }
       if (e.timeoutMs !== undefined && !(Number.isInteger(e.timeoutMs) && e.timeoutMs > 0)) {
         err(`${p}.timeoutMs`, "must be a positive integer");
+      }
+      if (e.addedFiles !== undefined) {
+        if (typeof e.addedFiles !== "object" || e.addedFiles === null || Array.isArray(e.addedFiles)) {
+          err(`${p}.addedFiles`, "must be an object mapping repo-relative paths to driver file contents");
+        } else {
+          for (const [rel, content] of Object.entries(e.addedFiles)) {
+            if (path.isAbsolute(rel) || rel.split("/").includes("..")) {
+              err(`${p}.addedFiles["${rel}"]`, "must be a repo-relative path");
+            }
+            if (typeof content !== "string" || content === "") {
+              err(`${p}.addedFiles["${rel}"]`, "must be non-empty driver content");
+            }
+          }
+        }
       }
     });
   }
@@ -487,6 +531,7 @@ export async function verifyLesson(lesson, repoRoot) {
           input: e.input,
           timeoutMs: e.timeoutMs ?? DEFAULT_TIMEOUT_MS,
           runner: e.runner && e.runner !== "node" ? e.runner : null,
+          addFiles: e.addedFiles ?? null,
         });
       } catch (err) {
         errors.push(`evidence ${e.id}: re-run failed: ${err.message}`);
@@ -547,6 +592,9 @@ function renderEvidence(evidenceById, evId) {
   }
   if (e.stdout) parts.push(preIo("Recorded stdout", e.stdout));
   if (e.stderr) parts.push(preIo("Recorded stderr", e.stderr));
+  for (const [rel, content] of Object.entries(e.addedFiles || {})) {
+    parts.push(preIo(`Driver file ${rel} (injected into the isolated copy)`, content));
+  }
   if (e.entryFileHash) {
     parts.push(`<p class="src-link">entry ${esc(e.entry)} @ ${esc(e.entryFileHash.slice(0, 12))}</p>`);
   }
@@ -735,12 +783,18 @@ function parseArgs(argv) {
     }
     const key = a.slice(2);
     const eq = key.indexOf("=");
+    let value;
     if (eq !== -1) {
-      opts[key.slice(0, eq)] = key.slice(eq + 1);
+      value = key.slice(eq + 1);
     } else if (i + 1 < argv.length && !argv[i + 1].startsWith("--")) {
-      opts[key] = argv[++i];
+      value = argv[++i];
     } else {
-      opts[key] = true;
+      value = true;
+    }
+    if (opts[key] !== undefined) {
+      opts[key] = [].concat(opts[key], value); // repeated flags collect into arrays
+    } else {
+      opts[key] = value;
     }
   }
   return opts;
@@ -787,13 +841,17 @@ const USAGE = `I Didn't Write This — toolkit
 
 Usage:
   toolkit.mjs snippet --repo DIR --path FILE --start N --end M
-  toolkit.mjs run --repo DIR --entry FILE [--input JSON | --stdin] [--timeout MS] [--runner CMD] [--keep]
+  toolkit.mjs run --repo DIR --entry FILE [--input JSON | --stdin] [--timeout MS] [--runner CMD]
+                  [--add REPOREL=LOCALFILE]... [--keep]
   toolkit.mjs check LESSON --repo DIR
   toolkit.mjs verify LESSON --repo DIR
   toolkit.mjs build LESSON --repo DIR --output FILE.html
 
 "run" executes the entry inside an isolated temporary copy of DIR and prints an
-execution record you can paste into the lesson evidence array (add an "id").`;
+execution record you can paste into the lesson evidence array (add an "id").
+"--add REPOREL=LOCALFILE" injects a driver file (content is read from LOCALFILE,
+written to REPOREL inside the isolated copy, recorded verbatim in the evidence,
+and replayed by verify). Driver files must not shadow existing repository files.`;
 
 async function main() {
   const [cmd, ...rest] = process.argv.slice(2);
@@ -817,12 +875,35 @@ async function main() {
           parsed = input; // raw stdin text
         }
       }
+      const addSpecs = [].concat(opts.add ?? []);
+      const addFiles = {};
+      for (const spec of addSpecs) {
+        if (spec === true) {
+          process.stderr.write("--add expects REPOREL=LOCALFILE\n");
+          process.exit(2);
+        }
+        const eq = spec.indexOf("=");
+        if (eq === -1) {
+          process.stderr.write(`--add expects REPOREL=LOCALFILE, got: ${spec}\n`);
+          process.exit(2);
+        }
+        const rel = spec.slice(0, eq);
+        const local = spec.slice(eq + 1);
+        let content;
+        try {
+          content = await fs.readFile(local, "utf8");
+        } catch (err) {
+          throw new Error(`cannot read --add source ${local}: ${err.code || err.message}`);
+        }
+        addFiles[rel] = content;
+      }
       const record = await runCase({
         repoRoot: repo,
         entry: requireOpt(opts, "entry"),
         input: parsed,
         timeoutMs: opts.timeout ? Number(opts.timeout) : DEFAULT_TIMEOUT_MS,
         runner: typeof opts.runner === "string" ? opts.runner : null,
+        addFiles: Object.keys(addFiles).length > 0 ? addFiles : null,
         keepWorkDir: Boolean(opts.keep),
       });
       printReport(record);

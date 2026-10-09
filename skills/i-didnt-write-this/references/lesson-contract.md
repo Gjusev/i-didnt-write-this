@@ -149,6 +149,24 @@ Copy it from the command's JSON output; do not retype it.
 `timedOut`, and `stdout` byte for byte. A mismatch means the lesson no longer
 describes this repository — fix the code or regenerate the lesson.
 
+### Driver evidence (`addedFiles`)
+
+When the project has no runnable entry for the behavior you need to show (a
+broken CLI, a library-only module), run a small driver script instead of
+improvising with `node -e`:
+
+```sh
+node assets/toolkit.mjs run --repo <REPO> --entry __probe.js \
+  --add __probe.js=./my-local-driver.js --input '...'
+```
+
+`--add REPOREL=LOCALFILE` reads the driver from your machine, writes it into
+the isolated copy at `REPOREL` (it must not shadow an existing repository
+file), and records its content verbatim in the evidence as `addedFiles`, so
+`verify` replays the exact same driver. The viewer shows injected driver files
+transparently next to the recorded output. `entry` may itself be an added file,
+as in the example above.
+
 ## `ui` (optional)
 
 Override the viewer's built-in English chrome when `language` is not English.

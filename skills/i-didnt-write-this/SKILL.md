@@ -45,7 +45,18 @@ Requires Node.js >= 22. No npm install.
    The entry runs inside an isolated temporary copy of the repo; the user's
    files are never touched. Copy the printed JSON record verbatim into
    `evidence[]`, adding only an `id`. For TypeScript that needs a custom
-   command, pass `--runner "npx tsx"` — if nothing can run the code, see step 6.
+   command, pass `--runner "npx tsx"`.
+
+   Run toolkit commands exactly as shown — one `node <path> <args>` invocation,
+   absolute paths, no `cd <dir> && …` wrappers. Permission allowlists match the
+   start of the command, and a wrapper makes the toolkit look like unnamed
+   third-party code (an agent hit exactly this and lost access to it).
+
+   If the project's CLI entry is broken but the core modules run, use driver
+   evidence instead of improvising with `node -e`: write a tiny driver file
+   locally and pass `--add REPOREL=LOCALFILE` with `--entry REPOREL`. The
+   driver is injected into the isolated copy, shown transparently in the
+   lesson, and replayed by `verify`. If nothing can run at all, see step 6.
 
 5. **Author the lesson.** Follow `references/lesson-contract.md` field by
    field. Three challenges, one of each kind: `predict` (what does this input
