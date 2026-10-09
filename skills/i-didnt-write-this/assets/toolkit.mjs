@@ -14,6 +14,7 @@
 
 import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
+import { realpathSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
@@ -968,7 +969,16 @@ async function main() {
   }
 }
 
-const invokedAsScript = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+// Compare real paths so the CLI still works when invoked through the symlink
+// an npm "bin" install creates (argv[1] is the link, import.meta.url is not).
+const invokedAsScript = (() => {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(path.resolve(process.argv[1])) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+})();
 if (invokedAsScript) {
   main();
 }
