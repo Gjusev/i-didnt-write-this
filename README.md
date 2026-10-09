@@ -1,5 +1,11 @@
 # I Didn't Write This
 
+<p align="center">
+  <img src="assets/social-preview.jpg" alt="I Didn't Write This — trace, predict, understand" width="100%">
+</p>
+
+<p align="center"><sub><strong>GJUSEV / FIELD TOOL 03</strong> &nbsp;·&nbsp; TRACE. PREDICT. UNDERSTAND.</sub></p>
+
 [![skills.sh](https://www.skills.sh/b/gjusev/i-didnt-write-this)](https://www.skills.sh/gjusev/i-didnt-write-this)
 
 Vibe-coded it? Now understand it.
