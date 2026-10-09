@@ -30,6 +30,12 @@ const NODE_STATES = ["observed", "inferred", "unobserved"];
 const SHA256_RE = /^[0-9a-f]{64}$/;
 const ID_RE = /^[a-z0-9][a-z0-9-]*$/;
 
+// Windows drive paths are not absolute on POSIX, so both checks are needed
+// for validation to behave identically on every OS.
+function isAbsolutePath(p) {
+  return path.isAbsolute(p) || /^[a-zA-Z]:[\\/]/.test(p);
+}
+
 // ---------------------------------------------------------------------------
 // Shared helpers
 // ---------------------------------------------------------------------------
@@ -59,7 +65,7 @@ export function resolveInside(repoRoot, relPath, label = "path") {
   if (typeof relPath !== "string" || relPath === "") {
     throw new Error(`${label} must be a non-empty relative path`);
   }
-  if (path.isAbsolute(relPath) || /^[a-zA-Z]:[\\/]/.test(relPath)) {
+  if (isAbsolutePath(relPath)) {
     throw new Error(`${label} must be relative, got: ${relPath}`);
   }
   const normalized = path.normalize(relPath.split("\\").join("/")).split(path.sep).join("/");
@@ -243,7 +249,7 @@ export function validateLesson(lesson) {
       err(`${root}.sourceSnapshot.files`, "required object mapping paths to sha256 hashes");
     } else {
       for (const [file, hash] of Object.entries(snapshot.files)) {
-        if (path.isAbsolute(file) || file.split("/").includes("..")) {
+        if (isAbsolutePath(file) || file.split("/").includes("..")) {
           err(`${root}.sourceSnapshot.files["${file}"]`, "must be a repo-relative path");
         }
         if (!SHA256_RE.test(String(hash))) {
@@ -265,7 +271,7 @@ export function validateLesson(lesson) {
       if (!isNonEmptyString(s.id) || !ID_RE.test(s.id)) err(`${p}.id`, `invalid id "${s.id}"`);
       else if (snippetIds.has(s.id)) err(`${p}.id`, `duplicate snippet id ${s.id}`);
       else snippetIds.add(s.id);
-      if (typeof s.path !== "string" || path.isAbsolute(s.path) || s.path.split("/").includes("..")) {
+      if (typeof s.path !== "string" || isAbsolutePath(s.path) || s.path.split("/").includes("..")) {
         err(`${p}.path`, "must be a repo-relative path");
       }
       if (!(Number.isInteger(s.startLine) && s.startLine >= 1)) err(`${p}.startLine`, "must be an integer >= 1");
@@ -301,7 +307,7 @@ export function validateLesson(lesson) {
       else evidenceById.set(e.id, e);
       if (e.kind !== "execution") err(`${p}.kind`, 'must be "execution"');
       if (!isNonEmptyString(e.command)) err(`${p}.command`, "required non-empty string");
-      if (typeof e.entry !== "string" || path.isAbsolute(e.entry) || e.entry.split("/").includes("..")) {
+      if (typeof e.entry !== "string" || isAbsolutePath(e.entry) || e.entry.split("/").includes("..")) {
         err(`${p}.entry`, "must be a repo-relative path");
       }
       if (!(e.exitCode === null || Number.isInteger(e.exitCode))) err(`${p}.exitCode`, "must be an integer or null");
@@ -319,7 +325,7 @@ export function validateLesson(lesson) {
           err(`${p}.addedFiles`, "must be an object mapping repo-relative paths to driver file contents");
         } else {
           for (const [rel, content] of Object.entries(e.addedFiles)) {
-            if (path.isAbsolute(rel) || rel.split("/").includes("..")) {
+            if (isAbsolutePath(rel) || rel.split("/").includes("..")) {
               err(`${p}.addedFiles["${rel}"]`, "must be a repo-relative path");
             }
             if (typeof content !== "string" || content === "") {
