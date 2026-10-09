@@ -110,21 +110,22 @@ AGENTS.md snippet above).
 ## Use it without an agent
 
 The toolkit is a plain CLI. Use `idwt` after `npm install -g
-i-didnt-write-this`, or use `npx --yes i-didnt-write-this@latest` directly
-without a global install:
+i-didnt-write-this`, or make a project-local install without changing its
+manifest or lockfile:
 
 ```sh
-npx --yes i-didnt-write-this@latest snippet --repo . --path src/store.js --start 9 --end 17   # verified snippet + hash
-npx --yes i-didnt-write-this@latest run     --repo . --entry src/cli.js --input '{"cmd":"x"}'  # isolated run, JSON evidence record
-npx --yes i-didnt-write-this@latest run     --repo . --entry __driver.mjs --add __driver.mjs=./driver.mjs   # driver evidence
-npx --yes i-didnt-write-this@latest check   lesson.json --repo .                               # contract + freshness validation
-npx --yes i-didnt-write-this@latest verify  lesson.json --repo .                               # re-runs all recorded evidence
-npx --yes i-didnt-write-this@latest build   lesson.json --repo . --output lesson.html          # standalone HTML lesson
+npm install --no-save --package-lock=false i-didnt-write-this
+
+npx idwt snippet --repo . --path src/store.js --start 9 --end 17   # verified snippet + hash
+npx idwt run     --repo . --entry src/cli.js --input '{"cmd":"x"}'  # isolated run, JSON evidence record
+npx idwt run     --repo . --entry __driver.mjs --add __driver.mjs=./driver.mjs   # driver evidence
+npx idwt check   lesson.json --repo .                               # contract + freshness validation
+npx idwt verify  lesson.json --repo .                               # re-runs all recorded evidence
+npx idwt build   lesson.json --repo . --output lesson.html          # standalone HTML lesson
 ```
 
-If it is installed globally, replace the `npx --yes
-i-didnt-write-this@latest` prefix with `idwt`. You can also invoke the copied
-skill directly with `node <skill>/assets/toolkit.mjs`.
+After either installation, invoke the copied skill directly with
+`node <skill>/assets/toolkit.mjs` if you prefer not to use the bin wrapper.
 
 Author `lesson.json` following
 [`skills/i-didnt-write-this/references/lesson-contract.md`](skills/i-didnt-write-this/references/lesson-contract.md).
