@@ -1,0 +1,12 @@
+{
+  "name": "i-didnt-write-this",
+  "version": "0.1.1",
+  "description": "Turn one local JavaScript or TypeScript feature into an interactive, evidence-backed lesson.",
+  "author": {
+    "name": "Gjusev"
+  },
+  "homepage": "https://github.com/Gjusev/i-didnt-write-this",
+  "repository": "https://github.com/Gjusev/i-didnt-write-this",
+  "license": "MIT",
+  "keywords": ["code-comprehension", "interactive-lesson", "javascript", "typescript", "agent-skills"]
+}

@@ -1,0 +1,15 @@
+{
+  "name": "i-didnt-write-this",
+  "description": "Evidence-backed interactive code lessons for code you need to understand.",
+  "owner": {
+    "name": "Gjusev"
+  },
+  "plugins": [
+    {
+      "name": "i-didnt-write-this",
+      "source": ".",
+      "description": "Turn one local JavaScript or TypeScript feature into an interactive lesson backed by recorded execution evidence.",
+      "version": "0.1.1"
+    }
+  ]
+}

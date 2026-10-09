@@ -37,6 +37,16 @@ cp -r skills/i-didnt-write-this ~/.claude/skills/   # manual copy from a clone
 Install **before** starting your agent session, so the skill is discovered on
 startup.
 
+### Claude Code plugin
+
+Claude Code users can install the managed plugin from this repository's
+marketplace:
+
+```text
+/plugin marketplace add Gjusev/i-didnt-write-this
+/plugin install i-didnt-write-this@i-didnt-write-this
+```
+
 ## Use it with your agent
 
 The skill lives in `skills/i-didnt-write-this/` (inside the repo, or inside
