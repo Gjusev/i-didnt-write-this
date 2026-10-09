@@ -1,0 +1,402 @@
+{
+  "schemaVersion": 1,
+  "id": "limiter-token-bucket-por-tiers",
+  "title": "¿Cómo decide el limitador qué peticiones admite — y por qué no acumula inactividad?",
+  "objective": "Podrás explicar cómo un cubo de tokens por tier decide admitir o rechazar cada petición: cómo se recarga con el tiempo, cómo se descuenta y dónde se descarta la inactividad sobrante.",
+  "language": "es",
+  "feature": "limitador de peticiones por tiers (token bucket)",
+  "sourceSnapshot": {
+    "revision": null,
+    "files": {
+      "src/index.js": "cd7d2f8671273b1f54ff46ba971ecf5b028201b296ec2c7f58d7660c8c134cd3",
+      "src/policy.js": "4a020fb7dac429104c14a4e44ae17b42445404102f3ba9f96cbebbbbe09c421b",
+      "src/bucket.js": "4c4a9712938b29744addbcae1b01da2afeacabe562353a46109a8a56c5e7c34b"
+    }
+  },
+  "ui": {
+    "kicker": "Lección interactiva de código",
+    "featureLabel": "Funcionalidad",
+    "revisionLabel": "Revisión del código",
+    "noRevisionLabel": "sin registrar",
+    "solvedProgress": "Resueltas {n} de {total}",
+    "skipToChallenges": "Saltar a los retos",
+    "warningsHeading": "⚠ Avisos — revisa antes de confiar en esta lección",
+    "flowHeading": "Cómo funciona esta funcionalidad",
+    "flowIntro": "Abre cada paso para ver su código y la evidencia que lo respalda. «observado» significa visto ejecutándose en una ejecución grabada; «inferido» significa concluido leyendo el código; «sin observar» significa que no se examinó.",
+    "challengesHeading": "Retos",
+    "limitationsHeading": "Límites y supuestos",
+    "optionsLabel": "Opciones",
+    "checkAnswer": "Comprobar respuesta",
+    "hintLabel": "Pista {n}",
+    "explanationLabel": "Explicación (revela la solución)",
+    "codeToInspectLabel": "Código para inspeccionar",
+    "inputLabel": "Entrada",
+    "verifiedTitle": "✓ Verificado contra ejecución.",
+    "verifiedBody": "La ejecución grabada que aparece abajo es la fuente de verdad de la respuesta correcta.",
+    "showRecordedRun": "Ver la ejecución grabada",
+    "stdoutLabel": "salida estándar",
+    "commandLabel": "comando",
+    "unverifiedBody": "No se grabó evidencia de ejecución para este reto; la respuesta marcada es una afirmación del autor, no un resultado verificado.",
+    "selectAnswer": "Elige una opción primero.",
+    "correctVerified": "✓ Correcto. Esta respuesta está respaldada por la ejecución grabada que se muestra abajo.",
+    "correctPlain": "✓ Correcto. (Este reto no tiene evidencia de ejecución grabada.)",
+    "incorrect": "✗ No es correcta. Relee el código enlazado o abre una pista."
+  },
+  "snippets": [
+    {
+      "id": "s-cli-burst",
+      "path": "src/index.js",
+      "startLine": 21,
+      "endLine": 27,
+      "code": "  const requests = (input.atMs ?? []).map((atMs) => ({\n    atMs,\n    ...check(bucket, input.tier, atMs, input.cost ?? 1),\n  }));\n  emit({ cmd: \"burst\", tier: input.tier, capacity: bucket.capacity, refillPerSecond: bucket.refillPerSecond, requests });\n} else if (input.cmd === \"tiers\") {\n  emit({ cmd: \"tiers\", tiers: [\"free\", \"pro\"] });",
+      "why": "El comando burst: crea el cubo del tier pedido y evalúa la secuencia de instantes contra el mismo cubo."
+    },
+    {
+      "id": "s-tiers",
+      "path": "src/policy.js",
+      "startLine": 3,
+      "endLine": 7,
+      "code": "// Free tier: small burst, slow refill. Pro tier: bigger burst, fast refill.\nconst TIERS = {\n  free: { capacity: 2, refillPerSecond: 10 },\n  pro: { capacity: 10, refillPerSecond: 0.5 },\n};",
+      "why": "La tabla TIERS fija los parámetros de cada plan. Ojo: los valores no coinciden con el comentario que la precede."
+    },
+    {
+      "id": "s-refill",
+      "path": "src/bucket.js",
+      "startLine": 7,
+      "endLine": 14,
+      "code": "export function refill(bucket, nowMs) {\n  const elapsedMs = Math.max(0, nowMs - bucket.updatedAtMs);\n  const gained = (elapsedMs / 1000) * bucket.refillPerSecond;\n  // Idle time beyond full is discarded: tokens never exceed capacity.\n  bucket.tokens = Math.min(bucket.capacity, bucket.tokens + gained);\n  bucket.updatedAtMs = Math.max(bucket.updatedAtMs, nowMs);\n  return bucket;\n}",
+      "why": "refill añade (ms transcurridos / 1000) × refillPerSecond y descarta con Math.min todo lo que supere la capacidad."
+    },
+    {
+      "id": "s-trytake",
+      "path": "src/bucket.js",
+      "startLine": 16,
+      "endLine": 23,
+      "code": "export function tryTake(bucket, nowMs, cost = 1) {\n  refill(bucket, nowMs);\n  if (bucket.tokens >= cost) {\n    bucket.tokens -= cost;\n    return { allowed: true, tokensLeft: round3(bucket.tokens) };\n  }\n  return { allowed: false, tokensLeft: round3(bucket.tokens) };\n}",
+      "why": "tryTake admite la petición y descuenta el coste solo si hay tokens suficientes; si no, rechaza sin descontar nada."
+    },
+    {
+      "id": "s-round3",
+      "path": "src/bucket.js",
+      "startLine": 25,
+      "endLine": 27,
+      "code": "export function round3(value) {\n  return Math.round(value * 1000) / 1000;\n}",
+      "why": "round3 redondea el saldo que se imprime a 3 decimales."
+    }
+  ],
+  "flow": {
+    "nodes": [
+      {
+        "id": "n-cli",
+        "label": "el comando burst procesa la secuencia de instantes contra un único cubo del tier pedido",
+        "snippetId": "s-cli-burst",
+        "state": "observed",
+        "evidenceIds": [
+          "e-burst-free"
+        ],
+        "note": "Las ejecuciones grabadas muestran la secuencia completa de admisiones y rechazos para cada instante."
+      },
+      {
+        "id": "n-tiers",
+        "label": "la tabla TIERS fija cada plan y bucketFor devuelve un cubo nuevo lleno",
+        "snippetId": "s-tiers",
+        "state": "observed",
+        "evidenceIds": [
+          "e-burst-free",
+          "e-frac-pro"
+        ],
+        "note": "Las salidas grabadas repiten capacity y refillPerSecond de la tabla: free (2, 10 tokens/s) y pro (10, 0,5 tokens/s). El comentario dice lo contrario que la tabla; lo grabado es la tabla."
+      },
+      {
+        "id": "n-trytake",
+        "label": "tryTake admite la petición y descuenta el coste solo si tokens ≥ cost",
+        "snippetId": "s-trytake",
+        "state": "observed",
+        "evidenceIds": [
+          "e-burst-free"
+        ],
+        "note": "En la ráfaga free, las dos primeras pasan (saldo 1 y 0) y la tercera se rechaza sin descontar nada."
+      },
+      {
+        "id": "n-refill",
+        "label": "refill suma el tiempo transcurrido por la tasa y descarta el exceso sobre la capacidad",
+        "snippetId": "s-refill",
+        "state": "observed",
+        "evidenceIds": [
+          "e-idle-cap",
+          "e-frac-pro"
+        ],
+        "note": "Tras 60 s de inactividad el saldo no llega a ~599 tokens: Math.min lo recorta a la capacidad. Y en 333 ms a 0,5 tokens/s solo se ganan 0,1665 tokens."
+      },
+      {
+        "id": "n-round3",
+        "label": "round3 redondea el saldo informado a 3 decimales",
+        "snippetId": "s-round3",
+        "state": "observed",
+        "evidenceIds": [
+          "e-frac-pro"
+        ],
+        "note": "La última petición pro sale con tokensLeft 0.167: es el 0,1665 ganado, redondeado al imprimirse."
+      }
+    ],
+    "links": [
+      {
+        "from": "n-cli",
+        "to": "n-tiers",
+        "label": "tier pedido"
+      },
+      {
+        "from": "n-cli",
+        "to": "n-trytake",
+        "label": "cada instante de la ráfaga"
+      },
+      {
+        "from": "n-trytake",
+        "to": "n-refill",
+        "label": "primero recarga"
+      },
+      {
+        "from": "n-trytake",
+        "to": "n-round3",
+        "label": "saldo a informar"
+      }
+    ]
+  },
+  "challenges": [
+    {
+      "id": "c-predecir-burst",
+      "kind": "predict",
+      "prompt": "Ejecutas el comando burst del tier free con esta entrada. ¿Qué secuencia de allowed imprime?",
+      "displayInput": {
+        "cmd": "burst",
+        "tier": "free",
+        "atMs": [
+          0,
+          0,
+          0,
+          100
+        ]
+      },
+      "snippetIds": [
+        "s-tiers",
+        "s-trytake"
+      ],
+      "options": [
+        {
+          "id": "o-ttft",
+          "text": "true, true, false, true"
+        },
+        {
+          "id": "o-ttff",
+          "text": "true, true, false, false"
+        },
+        {
+          "id": "o-tttf",
+          "text": "true, true, true, false"
+        },
+        {
+          "id": "o-fttf",
+          "text": "false, true, true, false"
+        }
+      ],
+      "answer": "o-ttft",
+      "verifiedBy": [
+        "e-burst-free"
+      ],
+      "hints": [
+        "Empieza por la capacidad del tier free: ¿cuántas peticiones seguidas admite un cubo recién creado?",
+        "A los 100 ms, multiplica el tiempo transcurrido por los tokens por segundo del tier."
+      ],
+      "explanation": "El cubo free arranca lleno (capacidad 2): las dos primeras pasan, la tercera se queda a cero y se rechaza. A los 100 ms, refill añade (100/1000) × 10 = 1 token exacto, así que la cuarta pasa. La ejecución grabada imprime [true, true, false, true]."
+    },
+    {
+      "id": "c-trazar-fraccion",
+      "kind": "trace",
+      "prompt": "En la ejecución pro (once peticiones a 0 ms y una a 333 ms), la última sale denegada con tokensLeft 0.167. ¿Qué paso produce el valor 0.1665 que luego se redondea?",
+      "displayInput": {
+        "cmd": "burst",
+        "tier": "pro",
+        "atMs": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          333
+        ]
+      },
+      "snippetIds": [
+        "s-refill",
+        "s-trytake",
+        "s-round3"
+      ],
+      "options": [
+        {
+          "id": "o-refill-frac",
+          "text": "refill añade (333/1000) × 0.5 tokens al cubo vacío"
+        },
+        {
+          "id": "o-trytake-resta",
+          "text": "tryTake descuenta 1 token aunque la petición se deniegue"
+        },
+        {
+          "id": "o-round3-multiplica",
+          "text": "round3 multiplica el tiempo transcurrido por la tasa de recarga"
+        },
+        {
+          "id": "o-bucketfor-rellena",
+          "text": "bucketFor rellena el cubo con 10 tokens en cada petición"
+        }
+      ],
+      "answer": "o-refill-frac",
+      "verifiedBy": [
+        "e-frac-pro"
+      ],
+      "hints": [
+        "El saldo tras las once peticiones iniciales es 0; algo tiene que añadir una fracción antes del último intento.",
+        "Abre el paso 4 (refill) y mira cómo se calcula gained a partir de los ms transcurridos."
+      ],
+      "explanation": "Tras once intentos a 0 ms el cubo pro está vacío. A los 333 ms, refill calcula gained = (333/1000) × 0.5 = 0.1665; como 0.1665 < 1, tryTake rechaza y reporta round3(0.1665) = 0.167. La ejecución grabada termina exactamente con tokensLeft 0.167."
+    },
+    {
+      "id": "c-localizar-tope",
+      "kind": "locate",
+      "prompt": "Tras 60 s de inactividad con el tier free, la siguiente petición sale admitida con saldo 1, y no con unos 599, pese a que a 10 tokens/s se ganan 600. ¿Qué línea descarta la inactividad sobrante?",
+      "displayInput": {
+        "cmd": "burst",
+        "tier": "free",
+        "atMs": [
+          0,
+          0,
+          0,
+          60000
+        ]
+      },
+      "snippetIds": [
+        "s-refill"
+      ],
+      "options": [
+        {
+          "id": "o-min-cap",
+          "text": "bucket.tokens = Math.min(bucket.capacity, bucket.tokens + gained); en refill (src/bucket.js)"
+        },
+        {
+          "id": "o-max-elapsed",
+          "text": "const elapsedMs = Math.max(0, nowMs - bucket.updatedAtMs); en refill (src/bucket.js)"
+        },
+        {
+          "id": "o-resta-cost",
+          "text": "bucket.tokens -= cost; en tryTake (src/bucket.js)"
+        },
+        {
+          "id": "o-tabla-free",
+          "text": "free: { capacity: 2, refillPerSecond: 10 } en la tabla TIERS (src/policy.js)"
+        }
+      ],
+      "answer": "o-min-cap",
+      "verifiedBy": [
+        "e-idle-cap"
+      ],
+      "hints": [
+        "La ejecución grabada descarta que sea la resta del coste: la petición sale admitida.",
+        "Busca qué evita que el saldo crezca sin límite durante la inactividad."
+      ],
+      "explanation": "refill sí calcula gained = 60000/1000 × 10 = 600 tokens, pero Math.min(bucket.capacity, …) recorta el saldo a la capacidad (2) antes de descontar el coste, y la petición sale con saldo 1. La ejecución grabada lo confirma: la cuarta petición (a los 60000 ms) imprime tokensLeft 1."
+    }
+  ],
+  "evidence": [
+    {
+      "id": "e-burst-free",
+      "kind": "execution",
+      "command": "node src/index.js",
+      "runner": "node",
+      "entry": "src/index.js",
+      "input": {
+        "cmd": "burst",
+        "tier": "free",
+        "atMs": [
+          0,
+          0,
+          0,
+          100
+        ]
+      },
+      "timeoutMs": 10000,
+      "exitCode": 0,
+      "timedOut": false,
+      "stdout": "{\"cmd\":\"burst\",\"tier\":\"free\",\"capacity\":2,\"refillPerSecond\":10,\"requests\":[{\"atMs\":0,\"allowed\":true,\"tokensLeft\":1},{\"atMs\":0,\"allowed\":true,\"tokensLeft\":0},{\"atMs\":0,\"allowed\":false,\"tokensLeft\":0},{\"atMs\":100,\"allowed\":true,\"tokensLeft\":0}]}\n",
+      "stderr": "",
+      "entryFileHash": "cd7d2f8671273b1f54ff46ba971ecf5b028201b296ec2c7f58d7660c8c134cd3",
+      "durationMs": 81
+    },
+    {
+      "id": "e-idle-cap",
+      "kind": "execution",
+      "command": "node src/index.js",
+      "runner": "node",
+      "entry": "src/index.js",
+      "input": {
+        "cmd": "burst",
+        "tier": "free",
+        "atMs": [
+          0,
+          0,
+          0,
+          60000
+        ]
+      },
+      "timeoutMs": 10000,
+      "exitCode": 0,
+      "timedOut": false,
+      "stdout": "{\"cmd\":\"burst\",\"tier\":\"free\",\"capacity\":2,\"refillPerSecond\":10,\"requests\":[{\"atMs\":0,\"allowed\":true,\"tokensLeft\":1},{\"atMs\":0,\"allowed\":true,\"tokensLeft\":0},{\"atMs\":0,\"allowed\":false,\"tokensLeft\":0},{\"atMs\":60000,\"allowed\":true,\"tokensLeft\":1}]}\n",
+      "stderr": "",
+      "entryFileHash": "cd7d2f8671273b1f54ff46ba971ecf5b028201b296ec2c7f58d7660c8c134cd3",
+      "durationMs": 108
+    },
+    {
+      "id": "e-frac-pro",
+      "kind": "execution",
+      "command": "node src/index.js",
+      "runner": "node",
+      "entry": "src/index.js",
+      "input": {
+        "cmd": "burst",
+        "tier": "pro",
+        "atMs": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          333
+        ]
+      },
+      "timeoutMs": 10000,
+      "exitCode": 0,
+      "timedOut": false,
+      "stdout": "{\"cmd\":\"burst\",\"tier\":\"pro\",\"capacity\":10,\"refillPerSecond\":0.5,\"requests\":[{\"atMs\":0,\"allowed\":true,\"tokensLeft\":9},{\"atMs\":0,\"allowed\":true,\"tokensLeft\":8},{\"atMs\":0,\"allowed\":true,\"tokensLeft\":7},{\"atMs\":0,\"allowed\":true,\"tokensLeft\":6},{\"atMs\":0,\"allowed\":true,\"tokensLeft\":5},{\"atMs\":0,\"allowed\":true,\"tokensLeft\":4},{\"atMs\":0,\"allowed\":true,\"tokensLeft\":3},{\"atMs\":0,\"allowed\":true,\"tokensLeft\":2},{\"atMs\":0,\"allowed\":true,\"tokensLeft\":1},{\"atMs\":0,\"allowed\":true,\"tokensLeft\":0},{\"atMs\":0,\"allowed\":false,\"tokensLeft\":0},{\"atMs\":333,\"allowed\":false,\"tokensLeft\":0.167}]}\n",
+      "stderr": "",
+      "entryFileHash": "cd7d2f8671273b1f54ff46ba971ecf5b028201b296ec2c7f58d7660c8c134cd3",
+      "durationMs": 121
+    }
+  ],
+  "limitations": [
+    "Esta lección se ejecuta contra la fixture sintética del limitador incluida en el proyecto, no contra código de usuario.",
+    "No se registra revisión git de la fixture; cada archivo queda fijado por su hash sha256 en sourceSnapshot.",
+    "El camino de tier desconocido (throw en bucketFor/check) se leyó pero no se ejecutó; el comando tiers del CLI tampoco se grabó.",
+    "El tiempo se simula con los valores atMs de la entrada: sin reloj real ni concurrencia en las ejecuciones grabadas.",
+    "El coste por petición (input.cost, por defecto 1) no se varió en las ejecuciones grabadas."
+  ]
+}

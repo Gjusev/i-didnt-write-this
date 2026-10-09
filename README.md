@@ -14,7 +14,9 @@ Everything runs locally. No accounts, no cloud, no telemetry.
 Open [`examples/cart/lesson.html`](examples/cart/lesson.html) in any browser —
 no server, no internet needed. It teaches a small synthetic cart project where
 a coupon discount silently disappears after a reload, using real recorded runs
-of `fixtures/cart` as evidence.
+of `fixtures/cart` as evidence. A second example,
+[`examples/limiter/lesson.html`](examples/limiter/lesson.html) (in Spanish, to
+show the localized viewer), teaches a token-bucket rate limiter the same way.
 
 ## Install
 
@@ -79,9 +81,10 @@ network.
 - `fixtures/cart`, `fixtures/limiter` — synthetic teaching projects with known
   behavior and their own test suites.
 - `tests/` — the toolkit's own test suite (plain `node:test`).
-- `e2e/` — the browser suite (`@playwright/test` is the only dev dependency).
-- `examples/cart/` — a committed demo lesson; `npm run demo` must reproduce
-  its HTML byte for byte.
+- `e2e/` — the browser suite, including automated accessibility scans
+  (`@axe-core/playwright` + `@playwright/test` are the only dev dependencies).
+- `examples/` — committed demo lessons; `npm run demo` must reproduce their
+  HTML byte for byte.
 
 ### What is and isn't verified
 

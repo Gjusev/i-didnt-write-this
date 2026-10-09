@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 
-import { TOOLKIT, CART_REPO, DEMO_LESSON_PATH, loadDemoLesson, hashTree } from "./helpers.mjs";
+import { TOOLKIT, CART_REPO, DEMO_LESSON_PATH, repoRoot, loadDemoLesson, hashTree } from "./helpers.mjs";
 
 function runToolkit(...args) {
   const res = spawnSync(process.execPath, [TOOLKIT, ...args], { encoding: "utf8", timeout: 60000 });
@@ -107,4 +107,28 @@ test("CLI prints usage for unknown commands", () => {
   const res = runToolkit("frobnicate");
   assert.equal(res.status, 2);
   assert.match(res.stderr, /Usage:/);
+});
+
+test("every committed example lesson verifies and rebuilds byte for byte", () => {
+  const examples = [
+    { name: "cart", repo: path.join(repoRoot, "fixtures", "cart") },
+    { name: "limiter", repo: path.join(repoRoot, "fixtures", "limiter") },
+  ];
+  for (const { name, repo } of examples) {
+    const lessonPath = path.join(repoRoot, "examples", name, "lesson.json");
+    const verify = runToolkit("verify", lessonPath, "--repo", repo);
+    assert.equal(verify.status, 0, `${name}: ${verify.stderr}${verify.stdout}`);
+    assert.ok(verify.json.reran >= 1, `${name}: evidence was re-run`);
+
+    const out = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "idwt-exbuild-")), "lesson.html");
+    try {
+      const build = runToolkit("build", lessonPath, "--repo", repo, "--output", out);
+      assert.equal(build.status, 0, `${name}: ${build.stderr}`);
+      const built = fs.readFileSync(out, "utf8");
+      const committed = fs.readFileSync(path.join(repoRoot, "examples", name, "lesson.html"), "utf8");
+      assert.equal(built, committed, `${name}: rebuild must reproduce the committed HTML`);
+    } finally {
+      fs.rmSync(path.dirname(out), { recursive: true, force: true });
+    }
+  }
 });

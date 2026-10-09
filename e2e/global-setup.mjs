@@ -48,6 +48,7 @@ export default async function globalSetup() {
 
   const manifest = {
     demo: demoUrl,
+    limiter: pathToFileURL(path.join(repoRoot, "examples", "limiter", "lesson.html")).href,
     unverified: urlFor("unverified.html"),
     hostile: urlFor("hostile.html"),
     stale: urlFor("stale.html"),

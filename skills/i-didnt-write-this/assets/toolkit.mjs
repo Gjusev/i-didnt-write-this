@@ -593,7 +593,7 @@ function esc(value) {
 }
 
 function preIo(label, content) {
-  return `<p class="io-label">${esc(label)}</p><pre class="io">${esc(content)}</pre>`;
+  return `<p class="io-label">${esc(label)}</p><pre class="io" role="region" aria-label="${esc(label)}" tabindex="0">${esc(content)}</pre>`;
 }
 
 function renderEvidence(evidenceById, evId) {
@@ -630,7 +630,7 @@ function renderNode(node, index, evidenceById, snippetById, snippetStatus) {
     const status = snippetStatus.get(snippet.id);
     const staleFlag = status === "stale" ? ` <span class="stale-flag">⚠ file changed since the lesson was generated — line numbers may be outdated</span>` : "";
     body.push(`<p class="src-link">${esc(snippet.path)}:${snippet.startLine}-${snippet.endLine}${staleFlag}</p>`);
-    body.push(`<pre class="code"><code>${esc(snippet.code)}</code></pre>`);
+    body.push(`<pre class="code" role="region" aria-label="Code ${esc(snippet.path)}:${snippet.startLine}-${snippet.endLine}" tabindex="0"><code>${esc(snippet.code)}</code></pre>`);
   }
   for (const evId of node.evidenceIds || []) body.push(renderEvidence(evidenceById, evId));
   return [

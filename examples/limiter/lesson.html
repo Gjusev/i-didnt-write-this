@@ -1,0 +1,692 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>¿Cómo decide el limitador qué peticiones admite — y por qué no acumula inactividad?</title>
+<style>
+  :root {
+    --bg: #fdfdfb;
+    --text: #1c1c1a;
+    --muted: #55554f;
+    --accent: #0b5cad;
+    --accent-soft: #e8f1f9;
+    --border: #cfcec6;
+    --code-bg: #f4f4ee;
+    --ok: #1a6b3c;
+    --ok-soft: #e9f4ed;
+    --warn: #8a6100;
+    --warn-soft: #fbf3e2;
+    --bad: #a13030;
+    --bad-soft: #faeeee;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0 auto;
+    padding: 1.5rem 1.25rem 4rem;
+    max-width: 62rem;
+    background: var(--bg);
+    color: var(--text);
+    font: 1rem/1.6 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  code, pre, kbd {
+    font-family: ui-monospace, "Cascadia Code", Consolas, "Courier New", monospace;
+  }
+  a { color: var(--accent); }
+  a:focus-visible, summary:focus-visible, button:focus-visible, input:focus-visible,
+  pre:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .skip {
+    position: absolute;
+    left: -999px;
+    top: 0;
+    background: var(--accent);
+    color: #fff;
+    padding: 0.5rem 1rem;
+    z-index: 10;
+  }
+  .skip:focus { left: 0.5rem; top: 0.5rem; }
+
+  .lesson-header h1 {
+    font-size: clamp(1.5rem, 4vw, 2.2rem);
+    line-height: 1.2;
+    margin: 0.2rem 0 0.6rem;
+  }
+  .kicker {
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--accent);
+    margin: 0;
+  }
+  .objective { font-size: 1.1rem; margin: 0.4rem 0 0.8rem; }
+  .meta {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin: 0.2rem 0;
+  }
+  .meta strong { color: var(--text); }
+  #progress {
+    display: inline-block;
+    background: var(--accent-soft);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    border-radius: 1em;
+    padding: 0.05rem 0.7rem;
+    font-weight: 600;
+  }
+
+  section { margin-top: 2.5rem; }
+  h2 {
+    font-size: 1.35rem;
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 0.3rem;
+    margin: 0 0 0.8rem;
+  }
+  .section-intro { color: var(--muted); margin-top: 0; }
+
+  .banner {
+    border: 2px solid var(--warn);
+    background: var(--warn-soft);
+    padding: 0.8rem 1rem;
+    border-radius: 6px;
+    margin-top: 1.5rem;
+  }
+  .banner h2 { border: none; color: var(--warn); margin: 0 0 0.4rem; font-size: 1.1rem; }
+  .banner ul { margin: 0; padding-left: 1.2rem; }
+
+  .badge {
+    display: inline-block;
+    border: 1.5px solid currentColor;
+    border-radius: 1em;
+    padding: 0 0.55em;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+  .badge.observed { color: var(--ok); background: var(--ok-soft); }
+  .badge.inferred { color: var(--warn); background: var(--warn-soft); }
+  .badge.unobserved { color: var(--muted); background: #efefe9; }
+
+  ol.flow { list-style: none; margin: 0; padding: 0; counter-reset: step; }
+  ol.flow > li {
+    counter-increment: step;
+    margin: 0 0 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #fff;
+  }
+  ol.flow > li::before {
+    content: counter(step);
+    display: inline-block;
+    min-width: 1.7em;
+    text-align: center;
+    margin: 0.65rem 0 0 0.8rem;
+    font-weight: 700;
+    color: var(--accent);
+    border: 1.5px solid var(--accent);
+    border-radius: 50%;
+    font-size: 0.85rem;
+    padding: 0.1em 0.3em;
+  }
+  .node summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    list-style: none;
+    cursor: pointer;
+    padding: 0.65rem 0.9rem 0.65rem 0.4rem;
+    font-weight: 600;
+  }
+  .node summary::-webkit-details-marker { display: none; }
+  .node summary::after {
+    content: "▸";
+    margin-left: auto;
+    color: var(--muted);
+  }
+  .node details[open] > summary::after,
+  details[open] > summary::after { content: "▾"; }
+  .node-body { padding: 0 1rem 1rem 3rem; }
+  .node-body .note { margin-top: 0; }
+  .src-link {
+    font-size: 0.85rem;
+    color: var(--muted);
+    font-family: ui-monospace, Consolas, monospace;
+  }
+  .stale-flag {
+    color: var(--warn);
+    font-weight: 700;
+    font-family: inherit;
+  }
+  pre.code, pre.io {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.7rem 0.9rem;
+    overflow-x: auto;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    tab-size: 2;
+  }
+  pre.code { margin: 0.4rem 0 0.6rem; }
+  .io-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin: 0.6rem 0 0.2rem;
+  }
+  details.evidence {
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    padding: 0.4rem 0.8rem;
+    margin-top: 0.6rem;
+    background: #fbfbf8;
+  }
+  details.evidence > summary {
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  details.evidence.failed > summary { color: var(--bad); }
+  .cmd { font-size: 0.85rem; margin: 0.4rem 0; }
+  .cmd code { background: var(--code-bg); padding: 0.15em 0.4em; border-radius: 4px; }
+
+  article.challenge {
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.2rem 1.2rem;
+    margin: 0 0 1.6rem;
+    background: #fff;
+  }
+  article.challenge h3 { margin: 0 0 0.4rem; font-size: 1.1rem; }
+  .kind {
+    display: inline-block;
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    border-radius: 4px;
+    padding: 0.15rem 0.5rem;
+    margin-right: 0.4rem;
+    vertical-align: middle;
+  }
+  fieldset { border: 1px solid var(--border); border-radius: 6px; margin: 0.8rem 0; }
+  legend { font-weight: 700; font-size: 0.85rem; padding: 0 0.4rem; }
+  fieldset label {
+    display: block;
+    padding: 0.45rem 0.6rem;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  fieldset label:hover { background: var(--accent-soft); }
+  fieldset input[type="radio"] { margin-right: 0.5rem; }
+  button.check {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font: inherit;
+    font-weight: 700;
+    padding: 0.5rem 1.1rem;
+    cursor: pointer;
+  }
+  button.check:hover { filter: brightness(1.1); }
+  button.check:disabled { background: var(--muted); cursor: default; }
+  .feedback {
+    min-height: 1.6em;
+    margin: 0.7rem 0 0.2rem;
+    font-weight: 600;
+  }
+  .feedback.ok { color: var(--ok); }
+  .feedback.bad { color: var(--bad); }
+  details.hint, details.spoiler {
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
+    border-radius: 4px;
+    padding: 0.4rem 0.8rem;
+    margin: 0.5rem 0;
+    background: #fbfbf8;
+  }
+  details.spoiler { border-left-color: var(--warn); }
+  details.hint summary, details.spoiler summary {
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+  aside.verification {
+    margin-top: 0.9rem;
+    border-radius: 6px;
+    padding: 0.7rem 1rem;
+    font-size: 0.95rem;
+  }
+  aside.verification.verified { border: 2px solid var(--ok); background: var(--ok-soft); }
+  aside.verification.unverified { border: 2px dashed var(--muted); background: #f4f4ef; }
+  aside.verification details { margin-top: 0.4rem; }
+  aside.verification summary { cursor: pointer; font-weight: 600; }
+
+  #limits ul { padding-left: 1.2rem; }
+  footer {
+    margin-top: 3rem;
+    border-top: 1px solid var(--border);
+    padding-top: 1rem;
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+
+  @media (max-width: 520px) {
+    body { padding: 1rem 0.8rem 3rem; }
+    .node-body { padding-left: 1.2rem; }
+    article.challenge { padding: 0.8rem; }
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#challenges">Saltar a los retos</a>
+<div id="app">
+<header class="lesson-header">
+<p class="kicker">Lección interactiva de código</p>
+<h1>¿Cómo decide el limitador qué peticiones admite — y por qué no acumula inactividad?</h1>
+<p class="objective">Podrás explicar cómo un cubo de tokens por tier decide admitir o rechazar cada petición: cómo se recarga con el tiempo, cómo se descuenta y dónde se descarta la inactividad sobrante.</p>
+<p class="meta">Funcionalidad: <strong>limitador de peticiones por tiers (token bucket)</strong> · Revisión del código: <code>sin registrar</code> · <span id="progress">Resueltas 0 de 3</span></p>
+</header>
+<section id="flow">
+<h2>Cómo funciona esta funcionalidad</h2>
+<p class="section-intro">Abre cada paso para ver su código y la evidencia que lo respalda. «observado» significa visto ejecutándose en una ejecución grabada; «inferido» significa concluido leyendo el código; «sin observar» significa que no se examinó.</p>
+<ol class="flow">
+<li class="node" id="node-n-cli">
+<details>
+<summary><span class="node-label">1. el comando burst procesa la secuencia de instantes contra un único cubo del tier pedido</span> <span class="badge observed">observed</span></summary>
+<div class="node-body"><p class="note">Las ejecuciones grabadas muestran la secuencia completa de admisiones y rechazos para cada instante.</p>
+<p class="src-link">src/index.js:21-27</p>
+<pre class="code" role="region" aria-label="Code src/index.js:21-27" tabindex="0"><code>  const requests = (input.atMs ?? []).map((atMs) =&gt; ({
+    atMs,
+    ...check(bucket, input.tier, atMs, input.cost ?? 1),
+  }));
+  emit({ cmd: &quot;burst&quot;, tier: input.tier, capacity: bucket.capacity, refillPerSecond: bucket.refillPerSecond, requests });
+} else if (input.cmd === &quot;tiers&quot;) {
+  emit({ cmd: &quot;tiers&quot;, tiers: [&quot;free&quot;, &quot;pro&quot;] });</code></pre>
+<details class="evidence">
+<summary>Evidence e-burst-free — execution (exit code 0)</summary>
+<p class="cmd">Command: <code>node src/index.js</code></p>
+<p class="io-label">Input (stdin)</p><pre class="io" role="region" aria-label="Input (stdin)" tabindex="0">{
+  &quot;cmd&quot;: &quot;burst&quot;,
+  &quot;tier&quot;: &quot;free&quot;,
+  &quot;atMs&quot;: [
+    0,
+    0,
+    0,
+    100
+  ]
+}</pre>
+<p class="io-label">Recorded stdout</p><pre class="io" role="region" aria-label="Recorded stdout" tabindex="0">{&quot;cmd&quot;:&quot;burst&quot;,&quot;tier&quot;:&quot;free&quot;,&quot;capacity&quot;:2,&quot;refillPerSecond&quot;:10,&quot;requests&quot;:[{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:1},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:0},{&quot;atMs&quot;:0,&quot;allowed&quot;:false,&quot;tokensLeft&quot;:0},{&quot;atMs&quot;:100,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:0}]}
+</pre>
+<p class="src-link">entry src/index.js @ cd7d2f867127</p>
+</details></div>
+</details>
+</li>
+<li class="node" id="node-n-tiers">
+<details>
+<summary><span class="node-label">2. la tabla TIERS fija cada plan y bucketFor devuelve un cubo nuevo lleno</span> <span class="badge observed">observed</span></summary>
+<div class="node-body"><p class="note">Las salidas grabadas repiten capacity y refillPerSecond de la tabla: free (2, 10 tokens/s) y pro (10, 0,5 tokens/s). El comentario dice lo contrario que la tabla; lo grabado es la tabla.</p>
+<p class="src-link">src/policy.js:3-7</p>
+<pre class="code" role="region" aria-label="Code src/policy.js:3-7" tabindex="0"><code>// Free tier: small burst, slow refill. Pro tier: bigger burst, fast refill.
+const TIERS = {
+  free: { capacity: 2, refillPerSecond: 10 },
+  pro: { capacity: 10, refillPerSecond: 0.5 },
+};</code></pre>
+<details class="evidence">
+<summary>Evidence e-burst-free — execution (exit code 0)</summary>
+<p class="cmd">Command: <code>node src/index.js</code></p>
+<p class="io-label">Input (stdin)</p><pre class="io" role="region" aria-label="Input (stdin)" tabindex="0">{
+  &quot;cmd&quot;: &quot;burst&quot;,
+  &quot;tier&quot;: &quot;free&quot;,
+  &quot;atMs&quot;: [
+    0,
+    0,
+    0,
+    100
+  ]
+}</pre>
+<p class="io-label">Recorded stdout</p><pre class="io" role="region" aria-label="Recorded stdout" tabindex="0">{&quot;cmd&quot;:&quot;burst&quot;,&quot;tier&quot;:&quot;free&quot;,&quot;capacity&quot;:2,&quot;refillPerSecond&quot;:10,&quot;requests&quot;:[{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:1},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:0},{&quot;atMs&quot;:0,&quot;allowed&quot;:false,&quot;tokensLeft&quot;:0},{&quot;atMs&quot;:100,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:0}]}
+</pre>
+<p class="src-link">entry src/index.js @ cd7d2f867127</p>
+</details>
+<details class="evidence">
+<summary>Evidence e-frac-pro — execution (exit code 0)</summary>
+<p class="cmd">Command: <code>node src/index.js</code></p>
+<p class="io-label">Input (stdin)</p><pre class="io" role="region" aria-label="Input (stdin)" tabindex="0">{
+  &quot;cmd&quot;: &quot;burst&quot;,
+  &quot;tier&quot;: &quot;pro&quot;,
+  &quot;atMs&quot;: [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    333
+  ]
+}</pre>
+<p class="io-label">Recorded stdout</p><pre class="io" role="region" aria-label="Recorded stdout" tabindex="0">{&quot;cmd&quot;:&quot;burst&quot;,&quot;tier&quot;:&quot;pro&quot;,&quot;capacity&quot;:10,&quot;refillPerSecond&quot;:0.5,&quot;requests&quot;:[{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:9},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:8},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:7},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:6},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:5},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:4},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:3},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:2},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:1},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:0},{&quot;atMs&quot;:0,&quot;allowed&quot;:false,&quot;tokensLeft&quot;:0},{&quot;atMs&quot;:333,&quot;allowed&quot;:false,&quot;tokensLeft&quot;:0.167}]}
+</pre>
+<p class="src-link">entry src/index.js @ cd7d2f867127</p>
+</details></div>
+</details>
+</li>
+<li class="node" id="node-n-trytake">
+<details>
+<summary><span class="node-label">3. tryTake admite la petición y descuenta el coste solo si tokens ≥ cost</span> <span class="badge observed">observed</span></summary>
+<div class="node-body"><p class="note">En la ráfaga free, las dos primeras pasan (saldo 1 y 0) y la tercera se rechaza sin descontar nada.</p>
+<p class="src-link">src/bucket.js:16-23</p>
+<pre class="code" role="region" aria-label="Code src/bucket.js:16-23" tabindex="0"><code>export function tryTake(bucket, nowMs, cost = 1) {
+  refill(bucket, nowMs);
+  if (bucket.tokens &gt;= cost) {
+    bucket.tokens -= cost;
+    return { allowed: true, tokensLeft: round3(bucket.tokens) };
+  }
+  return { allowed: false, tokensLeft: round3(bucket.tokens) };
+}</code></pre>
+<details class="evidence">
+<summary>Evidence e-burst-free — execution (exit code 0)</summary>
+<p class="cmd">Command: <code>node src/index.js</code></p>
+<p class="io-label">Input (stdin)</p><pre class="io" role="region" aria-label="Input (stdin)" tabindex="0">{
+  &quot;cmd&quot;: &quot;burst&quot;,
+  &quot;tier&quot;: &quot;free&quot;,
+  &quot;atMs&quot;: [
+    0,
+    0,
+    0,
+    100
+  ]
+}</pre>
+<p class="io-label">Recorded stdout</p><pre class="io" role="region" aria-label="Recorded stdout" tabindex="0">{&quot;cmd&quot;:&quot;burst&quot;,&quot;tier&quot;:&quot;free&quot;,&quot;capacity&quot;:2,&quot;refillPerSecond&quot;:10,&quot;requests&quot;:[{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:1},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:0},{&quot;atMs&quot;:0,&quot;allowed&quot;:false,&quot;tokensLeft&quot;:0},{&quot;atMs&quot;:100,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:0}]}
+</pre>
+<p class="src-link">entry src/index.js @ cd7d2f867127</p>
+</details></div>
+</details>
+</li>
+<li class="node" id="node-n-refill">
+<details>
+<summary><span class="node-label">4. refill suma el tiempo transcurrido por la tasa y descarta el exceso sobre la capacidad</span> <span class="badge observed">observed</span></summary>
+<div class="node-body"><p class="note">Tras 60 s de inactividad el saldo no llega a ~599 tokens: Math.min lo recorta a la capacidad. Y en 333 ms a 0,5 tokens/s solo se ganan 0,1665 tokens.</p>
+<p class="src-link">src/bucket.js:7-14</p>
+<pre class="code" role="region" aria-label="Code src/bucket.js:7-14" tabindex="0"><code>export function refill(bucket, nowMs) {
+  const elapsedMs = Math.max(0, nowMs - bucket.updatedAtMs);
+  const gained = (elapsedMs / 1000) * bucket.refillPerSecond;
+  // Idle time beyond full is discarded: tokens never exceed capacity.
+  bucket.tokens = Math.min(bucket.capacity, bucket.tokens + gained);
+  bucket.updatedAtMs = Math.max(bucket.updatedAtMs, nowMs);
+  return bucket;
+}</code></pre>
+<details class="evidence">
+<summary>Evidence e-idle-cap — execution (exit code 0)</summary>
+<p class="cmd">Command: <code>node src/index.js</code></p>
+<p class="io-label">Input (stdin)</p><pre class="io" role="region" aria-label="Input (stdin)" tabindex="0">{
+  &quot;cmd&quot;: &quot;burst&quot;,
+  &quot;tier&quot;: &quot;free&quot;,
+  &quot;atMs&quot;: [
+    0,
+    0,
+    0,
+    60000
+  ]
+}</pre>
+<p class="io-label">Recorded stdout</p><pre class="io" role="region" aria-label="Recorded stdout" tabindex="0">{&quot;cmd&quot;:&quot;burst&quot;,&quot;tier&quot;:&quot;free&quot;,&quot;capacity&quot;:2,&quot;refillPerSecond&quot;:10,&quot;requests&quot;:[{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:1},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:0},{&quot;atMs&quot;:0,&quot;allowed&quot;:false,&quot;tokensLeft&quot;:0},{&quot;atMs&quot;:60000,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:1}]}
+</pre>
+<p class="src-link">entry src/index.js @ cd7d2f867127</p>
+</details>
+<details class="evidence">
+<summary>Evidence e-frac-pro — execution (exit code 0)</summary>
+<p class="cmd">Command: <code>node src/index.js</code></p>
+<p class="io-label">Input (stdin)</p><pre class="io" role="region" aria-label="Input (stdin)" tabindex="0">{
+  &quot;cmd&quot;: &quot;burst&quot;,
+  &quot;tier&quot;: &quot;pro&quot;,
+  &quot;atMs&quot;: [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    333
+  ]
+}</pre>
+<p class="io-label">Recorded stdout</p><pre class="io" role="region" aria-label="Recorded stdout" tabindex="0">{&quot;cmd&quot;:&quot;burst&quot;,&quot;tier&quot;:&quot;pro&quot;,&quot;capacity&quot;:10,&quot;refillPerSecond&quot;:0.5,&quot;requests&quot;:[{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:9},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:8},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:7},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:6},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:5},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:4},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:3},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:2},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:1},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:0},{&quot;atMs&quot;:0,&quot;allowed&quot;:false,&quot;tokensLeft&quot;:0},{&quot;atMs&quot;:333,&quot;allowed&quot;:false,&quot;tokensLeft&quot;:0.167}]}
+</pre>
+<p class="src-link">entry src/index.js @ cd7d2f867127</p>
+</details></div>
+</details>
+</li>
+<li class="node" id="node-n-round3">
+<details>
+<summary><span class="node-label">5. round3 redondea el saldo informado a 3 decimales</span> <span class="badge observed">observed</span></summary>
+<div class="node-body"><p class="note">La última petición pro sale con tokensLeft 0.167: es el 0,1665 ganado, redondeado al imprimirse.</p>
+<p class="src-link">src/bucket.js:25-27</p>
+<pre class="code" role="region" aria-label="Code src/bucket.js:25-27" tabindex="0"><code>export function round3(value) {
+  return Math.round(value * 1000) / 1000;
+}</code></pre>
+<details class="evidence">
+<summary>Evidence e-frac-pro — execution (exit code 0)</summary>
+<p class="cmd">Command: <code>node src/index.js</code></p>
+<p class="io-label">Input (stdin)</p><pre class="io" role="region" aria-label="Input (stdin)" tabindex="0">{
+  &quot;cmd&quot;: &quot;burst&quot;,
+  &quot;tier&quot;: &quot;pro&quot;,
+  &quot;atMs&quot;: [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    333
+  ]
+}</pre>
+<p class="io-label">Recorded stdout</p><pre class="io" role="region" aria-label="Recorded stdout" tabindex="0">{&quot;cmd&quot;:&quot;burst&quot;,&quot;tier&quot;:&quot;pro&quot;,&quot;capacity&quot;:10,&quot;refillPerSecond&quot;:0.5,&quot;requests&quot;:[{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:9},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:8},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:7},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:6},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:5},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:4},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:3},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:2},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:1},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:0},{&quot;atMs&quot;:0,&quot;allowed&quot;:false,&quot;tokensLeft&quot;:0},{&quot;atMs&quot;:333,&quot;allowed&quot;:false,&quot;tokensLeft&quot;:0.167}]}
+</pre>
+<p class="src-link">entry src/index.js @ cd7d2f867127</p>
+</details></div>
+</details>
+</li>
+</ol></section>
+<section id="challenges">
+<h2>Retos</h2>
+<article class="challenge" id="challenge-c-predecir-burst">
+<h3><span class="kind">predict</span>Ejecutas el comando burst del tier free con esta entrada. ¿Qué secuencia de allowed imprime?</h3>
+<p class="io-label">Entrada</p><pre class="io" role="region" aria-label="Entrada" tabindex="0">{
+  &quot;cmd&quot;: &quot;burst&quot;,
+  &quot;tier&quot;: &quot;free&quot;,
+  &quot;atMs&quot;: [
+    0,
+    0,
+    0,
+    100
+  ]
+}</pre>
+<p class="meta">Código para inspeccionar: <a href="#node-n-tiers">src/policy.js:3-7</a> · <a href="#node-n-trytake">src/bucket.js:16-23</a></p>
+<form class="challenge-form" data-challenge-id="c-predecir-burst">
+<fieldset><legend>Opciones</legend>
+<label><input type="radio" name="c-predecir-burst" value="o-ttft"> true, true, false, true</label>
+<label><input type="radio" name="c-predecir-burst" value="o-ttff"> true, true, false, false</label>
+<label><input type="radio" name="c-predecir-burst" value="o-tttf"> true, true, true, false</label>
+<label><input type="radio" name="c-predecir-burst" value="o-fttf"> false, true, true, false</label>
+</fieldset>
+<button type="submit" class="check">Comprobar respuesta</button>
+<p class="feedback" role="status" aria-live="polite"></p>
+</form>
+<details class="hint"><summary>Pista 1</summary><p>Empieza por la capacidad del tier free: ¿cuántas peticiones seguidas admite un cubo recién creado?</p></details>
+<details class="hint"><summary>Pista 2</summary><p>A los 100 ms, multiplica el tiempo transcurrido por los tokens por segundo del tier.</p></details>
+<details class="spoiler"><summary>Explicación (revela la solución)</summary><p>El cubo free arranca lleno (capacidad 2): las dos primeras pasan, la tercera se queda a cero y se rechaza. A los 100 ms, refill añade (100/1000) × 10 = 1 token exacto, así que la cuarta pasa. La ejecución grabada imprime [true, true, false, true].</p></details>
+<aside class="verification verified">
+<p><strong>✓ Verificado contra ejecución.</strong> La ejecución grabada que aparece abajo es la fuente de verdad de la respuesta correcta. e-burst-free</p>
+<details><summary>Ver la ejecución grabada</summary><p class="io-label">salida estándar</p><pre class="io" role="region" aria-label="salida estándar" tabindex="0">{&quot;cmd&quot;:&quot;burst&quot;,&quot;tier&quot;:&quot;free&quot;,&quot;capacity&quot;:2,&quot;refillPerSecond&quot;:10,&quot;requests&quot;:[{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:1},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:0},{&quot;atMs&quot;:0,&quot;allowed&quot;:false,&quot;tokensLeft&quot;:0},{&quot;atMs&quot;:100,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:0}]}
+</pre><p class="io-label">comando</p><pre class="io" role="region" aria-label="comando" tabindex="0">node src/index.js</pre></details>
+</aside>
+</article>
+<article class="challenge" id="challenge-c-trazar-fraccion">
+<h3><span class="kind">trace</span>En la ejecución pro (once peticiones a 0 ms y una a 333 ms), la última sale denegada con tokensLeft 0.167. ¿Qué paso produce el valor 0.1665 que luego se redondea?</h3>
+<p class="io-label">Entrada</p><pre class="io" role="region" aria-label="Entrada" tabindex="0">{
+  &quot;cmd&quot;: &quot;burst&quot;,
+  &quot;tier&quot;: &quot;pro&quot;,
+  &quot;atMs&quot;: [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    333
+  ]
+}</pre>
+<p class="meta">Código para inspeccionar: <a href="#node-n-refill">src/bucket.js:7-14</a> · <a href="#node-n-trytake">src/bucket.js:16-23</a> · <a href="#node-n-round3">src/bucket.js:25-27</a></p>
+<form class="challenge-form" data-challenge-id="c-trazar-fraccion">
+<fieldset><legend>Opciones</legend>
+<label><input type="radio" name="c-trazar-fraccion" value="o-refill-frac"> refill añade (333/1000) × 0.5 tokens al cubo vacío</label>
+<label><input type="radio" name="c-trazar-fraccion" value="o-trytake-resta"> tryTake descuenta 1 token aunque la petición se deniegue</label>
+<label><input type="radio" name="c-trazar-fraccion" value="o-round3-multiplica"> round3 multiplica el tiempo transcurrido por la tasa de recarga</label>
+<label><input type="radio" name="c-trazar-fraccion" value="o-bucketfor-rellena"> bucketFor rellena el cubo con 10 tokens en cada petición</label>
+</fieldset>
+<button type="submit" class="check">Comprobar respuesta</button>
+<p class="feedback" role="status" aria-live="polite"></p>
+</form>
+<details class="hint"><summary>Pista 1</summary><p>El saldo tras las once peticiones iniciales es 0; algo tiene que añadir una fracción antes del último intento.</p></details>
+<details class="hint"><summary>Pista 2</summary><p>Abre el paso 4 (refill) y mira cómo se calcula gained a partir de los ms transcurridos.</p></details>
+<details class="spoiler"><summary>Explicación (revela la solución)</summary><p>Tras once intentos a 0 ms el cubo pro está vacío. A los 333 ms, refill calcula gained = (333/1000) × 0.5 = 0.1665; como 0.1665 &lt; 1, tryTake rechaza y reporta round3(0.1665) = 0.167. La ejecución grabada termina exactamente con tokensLeft 0.167.</p></details>
+<aside class="verification verified">
+<p><strong>✓ Verificado contra ejecución.</strong> La ejecución grabada que aparece abajo es la fuente de verdad de la respuesta correcta. e-frac-pro</p>
+<details><summary>Ver la ejecución grabada</summary><p class="io-label">salida estándar</p><pre class="io" role="region" aria-label="salida estándar" tabindex="0">{&quot;cmd&quot;:&quot;burst&quot;,&quot;tier&quot;:&quot;pro&quot;,&quot;capacity&quot;:10,&quot;refillPerSecond&quot;:0.5,&quot;requests&quot;:[{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:9},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:8},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:7},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:6},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:5},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:4},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:3},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:2},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:1},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:0},{&quot;atMs&quot;:0,&quot;allowed&quot;:false,&quot;tokensLeft&quot;:0},{&quot;atMs&quot;:333,&quot;allowed&quot;:false,&quot;tokensLeft&quot;:0.167}]}
+</pre><p class="io-label">comando</p><pre class="io" role="region" aria-label="comando" tabindex="0">node src/index.js</pre></details>
+</aside>
+</article>
+<article class="challenge" id="challenge-c-localizar-tope">
+<h3><span class="kind">locate</span>Tras 60 s de inactividad con el tier free, la siguiente petición sale admitida con saldo 1, y no con unos 599, pese a que a 10 tokens/s se ganan 600. ¿Qué línea descarta la inactividad sobrante?</h3>
+<p class="io-label">Entrada</p><pre class="io" role="region" aria-label="Entrada" tabindex="0">{
+  &quot;cmd&quot;: &quot;burst&quot;,
+  &quot;tier&quot;: &quot;free&quot;,
+  &quot;atMs&quot;: [
+    0,
+    0,
+    0,
+    60000
+  ]
+}</pre>
+<p class="meta">Código para inspeccionar: <a href="#node-n-refill">src/bucket.js:7-14</a></p>
+<form class="challenge-form" data-challenge-id="c-localizar-tope">
+<fieldset><legend>Opciones</legend>
+<label><input type="radio" name="c-localizar-tope" value="o-min-cap"> bucket.tokens = Math.min(bucket.capacity, bucket.tokens + gained); en refill (src/bucket.js)</label>
+<label><input type="radio" name="c-localizar-tope" value="o-max-elapsed"> const elapsedMs = Math.max(0, nowMs - bucket.updatedAtMs); en refill (src/bucket.js)</label>
+<label><input type="radio" name="c-localizar-tope" value="o-resta-cost"> bucket.tokens -= cost; en tryTake (src/bucket.js)</label>
+<label><input type="radio" name="c-localizar-tope" value="o-tabla-free"> free: { capacity: 2, refillPerSecond: 10 } en la tabla TIERS (src/policy.js)</label>
+</fieldset>
+<button type="submit" class="check">Comprobar respuesta</button>
+<p class="feedback" role="status" aria-live="polite"></p>
+</form>
+<details class="hint"><summary>Pista 1</summary><p>La ejecución grabada descarta que sea la resta del coste: la petición sale admitida.</p></details>
+<details class="hint"><summary>Pista 2</summary><p>Busca qué evita que el saldo crezca sin límite durante la inactividad.</p></details>
+<details class="spoiler"><summary>Explicación (revela la solución)</summary><p>refill sí calcula gained = 60000/1000 × 10 = 600 tokens, pero Math.min(bucket.capacity, …) recorta el saldo a la capacidad (2) antes de descontar el coste, y la petición sale con saldo 1. La ejecución grabada lo confirma: la cuarta petición (a los 60000 ms) imprime tokensLeft 1.</p></details>
+<aside class="verification verified">
+<p><strong>✓ Verificado contra ejecución.</strong> La ejecución grabada que aparece abajo es la fuente de verdad de la respuesta correcta. e-idle-cap</p>
+<details><summary>Ver la ejecución grabada</summary><p class="io-label">salida estándar</p><pre class="io" role="region" aria-label="salida estándar" tabindex="0">{&quot;cmd&quot;:&quot;burst&quot;,&quot;tier&quot;:&quot;free&quot;,&quot;capacity&quot;:2,&quot;refillPerSecond&quot;:10,&quot;requests&quot;:[{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:1},{&quot;atMs&quot;:0,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:0},{&quot;atMs&quot;:0,&quot;allowed&quot;:false,&quot;tokensLeft&quot;:0},{&quot;atMs&quot;:60000,&quot;allowed&quot;:true,&quot;tokensLeft&quot;:1}]}
+</pre><p class="io-label">comando</p><pre class="io" role="region" aria-label="comando" tabindex="0">node src/index.js</pre></details>
+</aside>
+</article>
+</section>
+<section id="limits">
+<h2>Límites y supuestos</h2>
+<ul>
+<li>Esta lección se ejecuta contra la fixture sintética del limitador incluida en el proyecto, no contra código de usuario.</li>
+<li>No se registra revisión git de la fixture; cada archivo queda fijado por su hash sha256 en sourceSnapshot.</li>
+<li>El camino de tier desconocido (throw en bucketFor/check) se leyó pero no se ejecutó; el comando tiers del CLI tampoco se grabó.</li>
+<li>El tiempo se simula con los valores atMs de la entrada: sin reloj real ni concurrencia en las ejecuciones grabadas.</li>
+<li>El coste por petición (input.cost, por defecto 1) no se varió en las ejecuciones grabadas.</li>
+</ul></section>
+<footer>
+<p>Lesson <code>limiter-token-bucket-por-tiers</code> · lesson schema v1 · generated by <strong>I Didn&rsquo;t Write This</strong>. Answers are embedded in this file if you want to peek. This page works offline.</p>
+</footer>
+</div>
+<script id="lesson-data" type="application/json">{"id":"limiter-token-bucket-por-tiers","language":"es","ui":{"kicker":"Lección interactiva de código","featureLabel":"Funcionalidad","revisionLabel":"Revisión del código","noRevisionLabel":"sin registrar","solvedProgress":"Resueltas {n} de {total}","skipToChallenges":"Saltar a los retos","warningsHeading":"⚠ Avisos — revisa antes de confiar en esta lección","flowHeading":"Cómo funciona esta funcionalidad","flowIntro":"Abre cada paso para ver su código y la evidencia que lo respalda. «observado» significa visto ejecutándose en una ejecución grabada; «inferido» significa concluido leyendo el código; «sin observar» significa que no se examinó.","challengesHeading":"Retos","limitationsHeading":"Límites y supuestos","optionsLabel":"Opciones","checkAnswer":"Comprobar respuesta","hintLabel":"Pista {n}","explanationLabel":"Explicación (revela la solución)","codeToInspectLabel":"Código para inspeccionar","inputLabel":"Entrada","verifiedTitle":"✓ Verificado contra ejecución.","verifiedBody":"La ejecución grabada que aparece abajo es la fuente de verdad de la respuesta correcta.","showRecordedRun":"Ver la ejecución grabada","stdoutLabel":"salida estándar","commandLabel":"comando","unverifiedBody":"No se grabó evidencia de ejecución para este reto; la respuesta marcada es una afirmación del autor, no un resultado verificado.","selectAnswer":"Elige una opción primero.","correctVerified":"✓ Correcto. Esta respuesta está respaldada por la ejecución grabada que se muestra abajo.","correctPlain":"✓ Correcto. (Este reto no tiene evidencia de ejecución grabada.)","incorrect":"✗ No es correcta. Relee el código enlazado o abre una pista."},"challenges":[{"id":"c-predecir-burst","answer":"o-ttft","verified":true},{"id":"c-trazar-fraccion","answer":"o-refill-frac","verified":true},{"id":"c-localizar-tope","answer":"o-min-cap","verified":true}]}</script>
+<script>
+(function () {
+  "use strict";
+  var lesson = JSON.parse(document.getElementById("lesson-data").textContent);
+  var ui = lesson.ui || {};
+  var strings = {
+    selectAnswer: ui.selectAnswer || "Select an answer first.",
+    correctVerified: ui.correctVerified || "✓ Correct. This answer is backed by the recorded execution shown below.",
+    correctPlain: ui.correctPlain || "✓ Correct. (No execution evidence recorded for this challenge.)",
+    incorrect: ui.incorrect || "✗ Not correct. Re-read the linked code, or open a hint.",
+    solvedProgress: ui.solvedProgress || "Solved {n}/{total}"
+  };
+  var solved = {};
+  var count = 0;
+  var progress = document.getElementById("progress");
+  function updateProgress() {
+    if (!progress) return;
+    progress.textContent = strings.solvedProgress.replace("{n}", String(count)).replace("{total}", String(lesson.challenges.length));
+  }
+  Array.prototype.forEach.call(document.querySelectorAll("form.challenge-form"), function (form) {
+    var id = form.getAttribute("data-challenge-id");
+    var challenge = null;
+    for (var i = 0; i < lesson.challenges.length; i++) {
+      if (lesson.challenges[i].id === id) { challenge = lesson.challenges[i]; break; }
+    }
+    if (!challenge) return;
+    var feedback = form.querySelector(".feedback");
+    var button = form.querySelector("button.check");
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      var picked = form.querySelector("input[type=radio]:checked");
+      if (!picked) {
+        feedback.textContent = strings.selectAnswer;
+        feedback.className = "feedback";
+        return;
+      }
+      if (picked.value === challenge.answer) {
+        if (!solved[id]) { solved[id] = true; count++; }
+        feedback.textContent = challenge.verified ? strings.correctVerified : strings.correctPlain;
+        feedback.className = "feedback ok";
+        if (button) button.disabled = true;
+      } else {
+        feedback.textContent = strings.incorrect;
+        feedback.className = "feedback bad";
+      }
+      updateProgress();
+    });
+  });
+  updateProgress();
+})();
+</script>
+</body>
+</html>

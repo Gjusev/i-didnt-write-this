@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
+export { repoRoot };
 export const CART_REPO = path.join(repoRoot, "fixtures", "cart");
 export const TOOLKIT = path.join(repoRoot, "skills", "i-didnt-write-this", "assets", "toolkit.mjs");
 export const DEMO_LESSON_PATH = path.join(repoRoot, "examples", "cart", "lesson.json");
