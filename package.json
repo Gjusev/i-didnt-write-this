@@ -1,6 +1,6 @@
 {
   "name": "i-didnt-write-this",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Turn one feature of a JavaScript or TypeScript project into an interactive, evidence-backed lesson.",
   "type": "module",
   "license": "MIT",

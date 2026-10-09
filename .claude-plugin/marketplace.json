@@ -9,7 +9,7 @@
       "name": "i-didnt-write-this",
       "source": ".",
       "description": "Turn one local JavaScript or TypeScript feature into an interactive lesson backed by recorded execution evidence.",
-      "version": "0.1.3"
+      "version": "0.1.4"
     }
   ]
 }

@@ -1,6 +1,6 @@
 # I Didn't Write This
 
-[![skills.sh](https://skills.sh/b/Gjusev/i-didnt-write-this)](https://skills.sh/Gjusev/i-didnt-write-this)
+[![skills.sh](https://www.skills.sh/b/gjusev/i-didnt-write-this)](https://www.skills.sh/gjusev/i-didnt-write-this)
 
 Vibe-coded it? Now understand it.
 
