@@ -1,6 +1,6 @@
 {
   "name": "i-didnt-write-this",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Turn one local JavaScript or TypeScript feature into an interactive, evidence-backed lesson.",
   "author": {
     "name": "Gjusev"
