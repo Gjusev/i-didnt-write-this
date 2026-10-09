@@ -1,7 +1,7 @@
 # I Didn't Write This
 
 <p align="center">
-  <img src="assets/social-preview.jpg" alt="I Didn't Write This — trace, predict, understand" width="100%">
+  <img src="assets/social-preview.jpg" alt="I Didn't Write This: trace, predict, understand" width="100%">
 </p>
 
 <p align="center"><sub><strong>GJUSEV / FIELD TOOL 03</strong> &nbsp;·&nbsp; TRACE. PREDICT. UNDERSTAND.</sub></p>
@@ -12,8 +12,8 @@ Vibe-coded it? Now understand it.
 
 An agent skill that turns **one feature** of your JavaScript or TypeScript
 project into an interactive, evidence-backed lesson: follow the data through
-the real source, predict what it does, and locate a fault — with every answer
-that can be checked against an actual recorded execution of your code.
+the real source, predict what it does, and locate a fault. Every answer can
+be checked against an actual recorded execution of your code.
 
 Everything runs locally. No accounts, no cloud, no telemetry.
 
@@ -32,13 +32,13 @@ flowchart LR
 
 | Before I Didn't Write This | After I Didn't Write This |
 | --- | --- |
-| “Can you explain the discount logic?” returns a summary you must trust. | The lesson asks you to predict the branch, then links the answer to source snippets and a recorded execution. |
+| "Can you explain the discount logic?" returns a summary you must trust. | The lesson asks you to predict the branch, then links the answer to source snippets and a recorded execution. |
 | Reading files linearly leaves the path through the feature implicit. | The trace follows the real data flow through one bounded feature and makes every exercise checkable. |
 | A guessed explanation can sound convincing. | Validation rejects a lesson whose evidence no longer matches the code it was built from. |
 
 ## Install
 
-The quickest way, in any project — the [skills.sh](https://skills.sh)
+The quickest way, in any project. The [skills.sh](https://skills.sh)
 installer copies the skill in as plain files you own, for whichever coding
 agents you use (Claude Code, Codex, Cursor, …):
 
@@ -84,8 +84,8 @@ Install with the skills.sh installer (see [Install](#install)) or copy the
 skill into `~/.claude/skills/` (user-level) or `.claude/skills/` (per project)
 **before starting the session**, then just ask naturally:
 
-> “I didn't write this code — help me understand how the discount logic works
-> in this project, with exercises.”
+> "I didn't write this code, help me understand how the discount logic works
+> in this project, with exercises."
 >
 > «No escribí esta funcionalidad; enséñamela con una lección interactiva.»
 
@@ -107,7 +107,7 @@ and use its toolkit for evidence, validation, and rendering.
 
 ### Cursor
 
-Same idea as a project rule — `.cursor/rules/i-didnt-write-this.mdc`:
+Same idea as a project rule, `.cursor/rules/i-didnt-write-this.mdc`:
 
 ```
 ---
@@ -128,7 +128,7 @@ Add the same pointer to your project's `GEMINI.md` (same content as the
 AGENTS.md snippet above).
 
 > Auto-activation is verified on Claude Code. The pointer pattern works with
-> any agent that reads AGENTS.md / Cursor rules / GEMINI.md — it is the same
+> any agent that reads AGENTS.md / Cursor rules / GEMINI.md; it is the same
 > instruction in three conventions. If your harness has native skills, copy
 > the folder there instead.
 
@@ -155,7 +155,7 @@ After either installation, invoke the copied skill directly with
 Author `lesson.json` following
 [`skills/i-didnt-write-this/references/lesson-contract.md`](skills/i-didnt-write-this/references/lesson-contract.md).
 Run toolkit commands as single `node <path> <args>` invocations with absolute
-paths — wrapping them in `cd … && …` can break permission allowlists.
+paths. Wrapping them in `cd … && …` can break permission allowlists.
 
 The resulting `lesson.html` opens offline in any browser. Answers are
 self-checked in the page; challenges marked *verified* show the recorded
@@ -170,12 +170,12 @@ npm run test:e2e  # Playwright browser suite (challenges, keyboard, escaping, of
 npm run test:all  # both
 ```
 
-- `fixtures/cart`, `fixtures/limiter` — synthetic teaching projects with known
+- `fixtures/cart`, `fixtures/limiter`: synthetic teaching projects with known
   behavior and their own test suites.
-- `tests/fixtures/*-lesson.json` — reference lessons whose recorded evidence
+- `tests/fixtures/*-lesson.json`: reference lessons whose recorded evidence
   is re-executed and compared byte for byte on every test run.
-- `tests/` — the toolkit's own test suite (plain `node:test`).
-- `e2e/` — the browser suite; it builds its lesson pages with the real
+- `tests/`: the toolkit's own test suite (plain `node:test`).
+- `e2e/`: the browser suite; it builds its lesson pages with the real
   toolkit pipeline at setup time (`@playwright/test` + `@axe-core/playwright`
   are the only dev dependencies).
 
@@ -184,7 +184,7 @@ npm run test:all  # both
 - The executor runs `.js`/`.mjs` entries with `node` (custom `--runner` for
   TypeScript, e.g. `npx tsx`; Node >= 23 can also run erasable `.ts` sources
   natively). Where code cannot be executed, the skill records challenges as
-  unverified with an explicit note — never as fake evidence.
+  unverified with an explicit note, never as fake evidence.
 - The exported HTML renders recorded output only; it never executes code, and
   all content is HTML-escaped.
 
