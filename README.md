@@ -17,6 +17,25 @@ that can be checked against an actual recorded execution of your code.
 
 Everything runs locally. No accounts, no cloud, no telemetry.
 
+## From opaque feature to evidence
+
+```mermaid
+flowchart LR
+    A["one real feature"] --> B["trace its source path"]
+    B --> C["record an isolated execution"]
+    C --> D["predict the next result"]
+    D --> E["check the source + trace"]
+    E --> F["interactive lesson.html"]
+```
+
+### Before → after
+
+| Before I Didn't Write This | After I Didn't Write This |
+| --- | --- |
+| “Can you explain the discount logic?” returns a summary you must trust. | The lesson asks you to predict the branch, then links the answer to source snippets and a recorded execution. |
+| Reading files linearly leaves the path through the feature implicit. | The trace follows the real data flow through one bounded feature and makes every exercise checkable. |
+| A guessed explanation can sound convincing. | Validation rejects a lesson whose evidence no longer matches the code it was built from. |
+
 ## Install
 
 The quickest way, in any project — the [skills.sh](https://skills.sh)
